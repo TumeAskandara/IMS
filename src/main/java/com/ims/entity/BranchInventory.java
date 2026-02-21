@@ -41,4 +41,16 @@ public class BranchInventory extends BaseEntity {
 
     @Column(name = "last_restock_date")
     private java.time.LocalDateTime lastRestockDate;
+
+    // Helper method to get quantity (for AnalyticsService compatibility)
+    public Integer getQuantity() {
+        return quantityOnHand; // Return quantityOnHand for backward compatibility
+    }
+
+    // Helper method to set quantity (for backward compatibility)
+    public void setQuantity(int quantity) {
+        this.quantityOnHand = quantity;
+        // Update available quantity (available = on hand - reserved)
+        this.quantityAvailable = this.quantityOnHand - this.quantityReserved;
+    }
 }

@@ -43,10 +43,10 @@ public class Product extends BaseEntity {
     @Column(unique = true, length = 100)
     private String barcode;
 
-    @Column(precision = 10, scale = 2)
+    @Column(name = "unit_price", precision = 10, scale = 2)
     private BigDecimal unitPrice;
 
-    @Column(precision = 10, scale = 2)
+    @Column(name = "cost_price", precision = 10, scale = 2)
     private BigDecimal costPrice;
 
     @Column(length = 50)
@@ -66,4 +66,9 @@ public class Product extends BaseEntity {
 
     @Column(name = "is_active")
     private Boolean isActive = true;
+
+    // Helper method to get selling price (alias for unitPrice)
+    public BigDecimal getSellingPrice() {
+        return unitPrice;
+    }
 }

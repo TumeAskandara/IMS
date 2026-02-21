@@ -1,38 +1,72 @@
 spring:
   application:
     name: inventory-management-system
-  
-  # Default profile (development with H2)
+
+  # ==========================================
+  # POSTGRESQL DATABASE CONFIGURATION (DEFAULT)
+  # ==========================================
   datasource:
-    url: jdbc:h2:file:./data/imsdb  # Changed to file-based so data persists
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
-  
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
-  
+    url: jdbc:postgresql://localhost:5432/imsdb?sslmode=disable
+    driver-class-name: org.postgresql.Driver
+    username: postgres
+    password: '#Supermont19'
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
   jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
-      ddl-auto: update  # Changed from create-drop to update (preserves data)
+      ddl-auto: update
     show-sql: true
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.H2Dialect
         format_sql: true
-        enable_lazy_load_no_trans: true  # Added to help with lazy loading
+        use_sql_comments: true
+        jdbc:
+          lob:
+            non_contextual_creation: true
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+        id:
+          new_generator_mappings: true
+        # Show SQL parameter values
+        type:
+          descriptor:
+            sql: true
+        generate_statistics: false
     open-in-view: false
-  
-  # Jackson configuration
+
   jackson:
     serialization:
       write-dates-as-timestamps: false
     time-zone: UTC
     default-property-inclusion: non_null
 
-# Server configuration
+  # ==========================================
+  # WEB CONFIGURATION
+  # ==========================================
+  web:
+    cors:
+      allowed-origins:
+        - http://localhost:3000
+        - http://127.0.0.1:3000
+        - http://172.28.32.1:3000
+      allowed-methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - PATCH
+        - OPTIONS
+      allowed-headers: "*"
+      allow-credentials: true
+      max-age: 3600
+
 server:
   port: 8080
   error:
@@ -40,14 +74,15 @@ server:
     include-binding-errors: always
     include-stacktrace: on_param
     include-exception: false
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain
 
-# JWT Configuration
 jwt:
   secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
-  access-token-expiration: 86400000 # 24 hours (increased from 15 minutes)
-  refresh-token-expiration: 604800000 # 7 days
+  access-token-expiration: 86400000
+  refresh-token-expiration: 604800000
 
-# API Documentation
 springdoc:
   api-docs:
     path: /api-docs
@@ -55,44 +90,119 @@ springdoc:
     path: /swagger-ui.html
     operationsSorter: method
     tagsSorter: alpha
+    enabled: true
 
-# Logging
+# ==========================================
+# ENHANCED LOGGING CONFIGURATION
+# ==========================================
+logging:
+  level:
+    # Your application
+    com.ims: DEBUG
+    com.ims.controller: DEBUG
+    com.ims.service: DEBUG
+    com.ims.repository: DEBUG
+    com.ims.security: DEBUG
+    com.ims.config: DEBUG
+
+    # Spring Framework
+    org.springframework: INFO
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.boot.autoconfigure: INFO
+
+    # Hibernate/JPA - Show ALL SQL
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.hibernate.type.descriptor.sql.BasicExtractor: TRACE
+    org.hibernate.engine.transaction.internal.TransactionImpl: DEBUG
+    org.hibernate.stat: DEBUG
+
+    # Show Request/Response
+    org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping: TRACE
+    org.springframework.web.servlet.mvc.method.annotation.RequestResponseBodyMethodProcessor: DEBUG
+
+    # Database Connection Pool
+    com.zaxxer.hikari: DEBUG
+
+    # CORS
+    org.springframework.web.cors: DEBUG
+
+  pattern:
+    # Console pattern with colors and detailed info
+    console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(%5p) %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n%wEx"
+
+    # File pattern (no colors)
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+  # Log to file
+  file:
+    name: logs/application.log
+    max-size: 10MB
+    max-history: 30
+    total-size-cap: 1GB
+
+---
+# ==========================================
+# DEVELOPMENT PROFILE (H2)
+# ==========================================
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+  datasource:
+    url: jdbc:h2:file:./data/imsdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
 logging:
   level:
     com.ims: DEBUG
-    org.springframework.security: DEBUG
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
 
 ---
-# Production Profile (PostgreSQL)
+# ==========================================
+# PRODUCTION PROFILE
+# ==========================================
 spring:
   config:
     activate:
       on-profile: prod
-  
+
   datasource:
-    url: jdbc:postgresql://localhost:5432/imsdb
-    driver-class-name: org.postgresql.Driver
-    username: imsuser
-    password: imspass
-  
+    url: jdbc:postgresql://localhost:5432/imsdb?sslmode=disable
+    username: postgres
+    password: '#Supermont19'
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 10
+
   jpa:
     hibernate:
       ddl-auto: validate
     show-sql: false
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-  
-  h2:
-    console:
-      enabled: false
+        format_sql: false
 
 logging:
   level:
     com.ims: INFO
-    org.springframework.security: WARN
+    org.springframework: WARN
     org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql.BasicBinder: WARN
+
+  file:
+    name: logs/application-prod.log

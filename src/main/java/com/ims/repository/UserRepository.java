@@ -1,5 +1,6 @@
 package com.ims.repository;
 
+import com.ims.entity.Branch;
 import com.ims.entity.User;
 import com.ims.enums.Role;
 import org.springframework.data.domain.Page;
@@ -28,4 +29,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findByBranchIdAndIsDeletedFalse(Long branchId);
     
     Page<User> findByRoleAndIsDeletedFalse(Role role, Pageable pageable);
+
+    List<User> findByBranchAndRole(Branch branch, Role role);
 }

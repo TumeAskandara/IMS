@@ -1,0 +1,31 @@
+package com.ims.repository;
+
+import com.ims.entity.Notification;
+import com.ims.entity.User;
+import com.ims.enums.NotificationPriority;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public interface NotificationRepository extends JpaRepository<Notification, Long> {
+    
+    Page<Notification> findByUserOrderByCreatedAtDesc(User user, Pageable pageable);
+    
+    Page<Notification> findByUserAndIsReadFalseOrderByCreatedAtDesc(User user, Pageable pageable);
+    
+    List<Notification> findByUserAndIsReadFalseAndPriorityOrderByCreatedAtDesc(User user, NotificationPriority priority);
+    
+    @Query("SELECT COUNT(n) FROM Notification n WHERE n.user = :user AND n.isRead = false")
+    Long countUnreadByUser(@Param("user") User user);
+    
+    @Query("SELECT COUNT(n) FROM Notification n WHERE n.user = :user AND n.isRead = false AND n.priority = :priority")
+    Long countUnreadByUserAndPriority(@Param("user") User user, @Param("priority") NotificationPriority priority);
+    
+    void deleteByUser(User user);
+}

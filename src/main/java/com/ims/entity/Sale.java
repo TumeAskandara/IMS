@@ -9,6 +9,7 @@ import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 @Entity
@@ -34,6 +35,10 @@ public class Sale extends BaseEntity {
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "seller_id", nullable = false)
     private User seller;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_id")
+    private Customer customer;
 
     @Column(name = "customer_name", length = 100)
     private String customerName;
@@ -90,4 +95,6 @@ public class Sale extends BaseEntity {
         saleItems.remove(item);
         item.setSale(null);
     }
+
+
 }

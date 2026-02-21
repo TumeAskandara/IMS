@@ -1,9 +1,9 @@
 package com.ims.service;
 
-import com.ims.entity.Branch;
-import com.ims.entity.BranchInventory;
-import com.ims.entity.Product;
-import com.ims.entity.StockMovement;
+import com.ims.entity.*;
+import com.ims.enums.NotificationPriority;
+import com.ims.enums.NotificationType;
+import com.ims.enums.Role;
 import com.ims.enums.StockMovementType;
 import com.ims.exception.BadRequestException;
 import com.ims.exception.ResourceNotFoundException;
@@ -11,6 +11,7 @@ import com.ims.repository.BranchInventoryRepository;
 import com.ims.repository.BranchRepository;
 import com.ims.repository.ProductRepository;
 import com.ims.repository.StockMovementRepository;
+import com.ims.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -27,6 +28,8 @@ public class InventoryService {
     private final ProductRepository productRepository;
     private final BranchRepository branchRepository;
     private final StockMovementRepository stockMovementRepository;
+    private final NotificationService notificationService;
+    private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
     public Page<BranchInventory> getBranchInventory(Long branchId, Pageable pageable) {
@@ -44,11 +47,11 @@ public class InventoryService {
     }
 
     @Transactional
-    public BranchInventory adjustStock(Long branchId, Long productId, Integer quantity, 
+    public BranchInventory adjustStock(Long branchId, Long productId, Integer quantity,
                                        StockMovementType movementType, String notes) {
         Branch branch = branchRepository.findById(branchId)
                 .orElseThrow(() -> new ResourceNotFoundException("Branch", "id", branchId));
-        
+
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", "id", productId));
 
@@ -71,7 +74,7 @@ public class InventoryService {
 
         inventory.setQuantityOnHand(newQuantity);
         inventory.setQuantityAvailable(newQuantity - inventory.getQuantityReserved());
-        
+
         BranchInventory saved = branchInventoryRepository.save(inventory);
 
         // Create stock movement record
@@ -86,7 +89,51 @@ public class InventoryService {
                 .build();
         stockMovementRepository.save(movement);
 
+        // Check stock levels and send notifications
+        checkStockLevels(saved, product, branch);
+
         return saved;
+    }
+
+    // Check stock levels and notify managers
+    private void checkStockLevels(BranchInventory inventory, Product product, Branch branch) {
+        // Check if low stock
+        if (product.getReorderLevel() != null &&
+                inventory.getQuantityAvailable() < product.getReorderLevel() &&
+                inventory.getQuantityAvailable() > 0) {
+
+            // Find all managers in this branch
+            List<User> managers = userRepository.findByBranchAndRole(branch, Role.MANAGER);
+
+            // Create notification for each manager
+            for (User manager : managers) {
+                notificationService.createNotification(
+                        manager.getId(),
+                        NotificationType.LOW_STOCK,
+                        NotificationPriority.HIGH,
+                        "Low Stock Alert",
+                        String.format("Product '%s' is low. Current: %d, Reorder Level: %d",
+                                product.getName(),
+                                inventory.getQuantityAvailable(),
+                                product.getReorderLevel())
+                );
+            }
+        }
+
+        // Check if out of stock
+        if (inventory.getQuantityAvailable() == 0) {
+            List<User> managers = userRepository.findByBranchAndRole(branch, Role.MANAGER);
+
+            for (User manager : managers) {
+                notificationService.createNotification(
+                        manager.getId(),
+                        NotificationType.OUT_OF_STOCK,
+                        NotificationPriority.CRITICAL,
+                        "Out of Stock!",
+                        String.format("Product '%s' is OUT OF STOCK!", product.getName())
+                );
+            }
+        }
     }
 
     @Transactional(readOnly = true)

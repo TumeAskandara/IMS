@@ -21,7 +21,7 @@ public class SaleItem extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sale_id", nullable = false)
-    @JsonBackReference  // THIS BREAKS THE CIRCULAR REFERENCE
+    @JsonBackReference
     private Sale sale;
 
     @ManyToOne(fetch = FetchType.EAGER)
@@ -39,4 +39,14 @@ public class SaleItem extends BaseEntity {
 
     @Column(name = "line_total", precision = 12, scale = 2, nullable = false)
     private BigDecimal lineTotal;
+
+    // Helper method to get subtotal (alias for lineTotal)
+    public BigDecimal getSubtotal() {
+        return lineTotal;
+    }
+
+    // Alternative: Calculate subtotal dynamically
+    // public BigDecimal getSubtotal() {
+    //     return unitPrice.multiply(BigDecimal.valueOf(quantity)).subtract(discountAmount);
+    // }
 }

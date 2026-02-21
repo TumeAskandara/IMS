@@ -62,8 +62,8 @@ public class SaleService {
 
             if (inventory.getQuantityAvailable() < itemReq.getQuantity()) {
                 throw new BadRequestException(
-                        "Insufficient stock for " + product.getName() + 
-                        ". Available: " + inventory.getQuantityAvailable());
+                        "Insufficient stock for " + product.getName() +
+                                ". Available: " + inventory.getQuantityAvailable());
             }
 
             BigDecimal lineTotal = itemReq.getUnitPrice()
@@ -131,8 +131,8 @@ public class SaleService {
         }
 
         // Handle credit sale
-        if (request.getPaymentMethod() == PaymentMethod.CREDIT && 
-            amountDue.compareTo(BigDecimal.ZERO) > 0) {
+        if (request.getPaymentMethod() == PaymentMethod.CREDIT &&
+                amountDue.compareTo(BigDecimal.ZERO) > 0) {
             createDebtRecord(savedSale, request.getCreditAccountId(), request.getDueDate());
         }
 
@@ -206,25 +206,59 @@ public class SaleService {
 
     private String generateInvoiceNumber(Branch branch) {
         Long count = saleRepository.getTodaySalesCount(branch.getId(), LocalDateTime.now().toLocalDate().atStartOfDay());
-        return String.format("%s-INV-%d-%05d", 
-                branch.getCode(), 
-                LocalDateTime.now().getYear(), 
+        return String.format("%s-INV-%d-%05d",
+                branch.getCode(),
+                LocalDateTime.now().getYear(),
                 count + 1);
     }
 
+    // ==========================================
+    // QUERY METHODS (With Eager Loading)
+    // ==========================================
+
+    /**
+     * Get all sales with all relationships loaded
+     * Uses JOIN FETCH to prevent lazy loading errors
+     */
     @Transactional(readOnly = true)
     public Page<Sale> getAllSales(Pageable pageable) {
-        return saleRepository.findAll(pageable);
+        return saleRepository.findAllWithItems(pageable);
     }
 
+    /**
+     * Get sale by ID with all relationships loaded
+     * Uses JOIN FETCH to prevent lazy loading errors
+     */
     @Transactional(readOnly = true)
     public Sale getSaleById(Long id) {
-        return saleRepository.findById(id)
+        return saleRepository.findByIdWithItems(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Sale", "id", id));
     }
 
+    /**
+     * Get sales by branch with all relationships loaded
+     * Uses JOIN FETCH to prevent lazy loading errors
+     */
     @Transactional(readOnly = true)
     public Page<Sale> getSalesByBranch(Long branchId, Pageable pageable) {
-        return saleRepository.findByBranchIdOrderBySaleDateDesc(branchId, pageable);
+        return saleRepository.findByBranchIdWithItems(branchId, pageable);
+    }
+
+    /**
+     * Get sales by status with all relationships loaded
+     * Uses JOIN FETCH to prevent lazy loading errors
+     */
+    @Transactional(readOnly = true)
+    public Page<Sale> getSalesByStatus(SaleStatus status, Pageable pageable) {
+        return saleRepository.findByStatusWithItems(status, pageable);
+    }
+
+    /**
+     * Get sales by customer with all relationships loaded
+     * Uses JOIN FETCH to prevent lazy loading errors
+     */
+    @Transactional(readOnly = true)
+    public Page<Sale> getSalesByCustomer(Customer customer, Pageable pageable) {
+        return saleRepository.findByCustomerWithItems(customer, pageable);
     }
 }
