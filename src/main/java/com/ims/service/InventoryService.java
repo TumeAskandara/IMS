@@ -13,8 +13,10 @@ import com.ims.repository.ProductRepository;
 import com.ims.repository.StockMovementRepository;
 import com.ims.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +24,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class InventoryService {
 
     private final BranchInventoryRepository branchInventoryRepository;
@@ -56,7 +59,7 @@ public class InventoryService {
                 .orElseThrow(() -> new ResourceNotFoundException("Product", "id", productId));
 
         BranchInventory inventory = branchInventoryRepository
-                .findByBranchIdAndProductId(branchId, productId)
+                .findByBranchIdAndProductIdForUpdate(branchId, productId)
                 .orElse(BranchInventory.builder()
                         .branch(branch)
                         .product(product)
@@ -95,43 +98,51 @@ public class InventoryService {
         return saved;
     }
 
-    // Check stock levels and notify managers
+    // Check stock levels and notify managers and admins
     private void checkStockLevels(BranchInventory inventory, Product product, Branch branch) {
         // Check if low stock
         if (product.getReorderLevel() != null &&
                 inventory.getQuantityAvailable() < product.getReorderLevel() &&
                 inventory.getQuantityAvailable() > 0) {
 
-            // Find all managers in this branch
-            List<User> managers = userRepository.findByBranchAndRole(branch, Role.MANAGER);
+            String message = String.format("Product '%s' at branch '%s' is low. Current: %d, Reorder Level: %d",
+                    product.getName(), branch.getName(),
+                    inventory.getQuantityAvailable(), product.getReorderLevel());
 
-            // Create notification for each manager
+            // Notify branch managers
+            List<User> managers = userRepository.findByBranchAndRole(branch, Role.MANAGER);
             for (User manager : managers) {
                 notificationService.createNotification(
-                        manager.getId(),
-                        NotificationType.LOW_STOCK,
-                        NotificationPriority.HIGH,
-                        "Low Stock Alert",
-                        String.format("Product '%s' is low. Current: %d, Reorder Level: %d",
-                                product.getName(),
-                                inventory.getQuantityAvailable(),
-                                product.getReorderLevel())
-                );
+                        manager.getId(), NotificationType.LOW_STOCK,
+                        NotificationPriority.HIGH, "Low Stock Alert", message);
+            }
+
+            // Notify all admins
+            List<User> admins = userRepository.findByRole(Role.ADMIN);
+            for (User admin : admins) {
+                notificationService.createNotification(
+                        admin.getId(), NotificationType.LOW_STOCK,
+                        NotificationPriority.HIGH, "Low Stock Alert", message);
             }
         }
 
         // Check if out of stock
         if (inventory.getQuantityAvailable() == 0) {
-            List<User> managers = userRepository.findByBranchAndRole(branch, Role.MANAGER);
+            String message = String.format("Product '%s' at branch '%s' is OUT OF STOCK!",
+                    product.getName(), branch.getName());
 
+            List<User> managers = userRepository.findByBranchAndRole(branch, Role.MANAGER);
             for (User manager : managers) {
                 notificationService.createNotification(
-                        manager.getId(),
-                        NotificationType.OUT_OF_STOCK,
-                        NotificationPriority.CRITICAL,
-                        "Out of Stock!",
-                        String.format("Product '%s' is OUT OF STOCK!", product.getName())
-                );
+                        manager.getId(), NotificationType.OUT_OF_STOCK,
+                        NotificationPriority.CRITICAL, "Out of Stock!", message);
+            }
+
+            List<User> admins = userRepository.findByRole(Role.ADMIN);
+            for (User admin : admins) {
+                notificationService.createNotification(
+                        admin.getId(), NotificationType.OUT_OF_STOCK,
+                        NotificationPriority.CRITICAL, "Out of Stock!", message);
             }
         }
     }
@@ -181,5 +192,81 @@ public class InventoryService {
             throw new ResourceNotFoundException("Branch", "id", branchId);
         }
         return branchInventoryRepository.findOutOfStockItems(branchId, pageable);
+    }
+
+    /**
+     * Scheduled task to check all branches for low-stock and out-of-stock items.
+     * Runs every hour and on application startup.
+     */
+    @Scheduled(fixedRate = 3600000, initialDelay = 10000) // every hour, 10s after startup
+    @Transactional
+    public void scheduledStockLevelCheck() {
+        log.info("Running scheduled stock level check...");
+
+        List<Branch> branches = branchRepository.findAll();
+        List<User> managers = userRepository.findByRole(Role.MANAGER);
+        List<User> admins = userRepository.findByRole(Role.ADMIN);
+
+        int lowStockCount = 0;
+        int outOfStockCount = 0;
+
+        for (Branch branch : branches) {
+            // Check low stock items
+            List<BranchInventory> lowStockItems = branchInventoryRepository.findLowStockItems(branch.getId());
+            for (BranchInventory item : lowStockItems) {
+                lowStockCount++;
+                // Notify branch managers
+                List<User> branchManagers = userRepository.findByBranchAndRole(branch, Role.MANAGER);
+                for (User manager : branchManagers) {
+                    notificationService.createNotification(
+                            manager.getId(),
+                            NotificationType.LOW_STOCK,
+                            NotificationPriority.HIGH,
+                            "Low Stock Alert",
+                            String.format("Product '%s' at branch '%s' is low. Current: %d, Reorder Level: %d",
+                                    item.getProduct().getName(),
+                                    branch.getName(),
+                                    item.getQuantityAvailable(),
+                                    item.getProduct().getReorderLevel())
+                    );
+                }
+            }
+
+            // Check out of stock items
+            List<BranchInventory> outOfStockItems = branchInventoryRepository.findAllOutOfStockItems();
+            for (BranchInventory item : outOfStockItems) {
+                if (item.getBranch().getId().equals(branch.getId())) {
+                    outOfStockCount++;
+                    List<User> branchManagers = userRepository.findByBranchAndRole(branch, Role.MANAGER);
+                    for (User manager : branchManagers) {
+                        notificationService.createNotification(
+                                manager.getId(),
+                                NotificationType.OUT_OF_STOCK,
+                                NotificationPriority.CRITICAL,
+                                "Out of Stock!",
+                                String.format("Product '%s' at branch '%s' is OUT OF STOCK!",
+                                        item.getProduct().getName(),
+                                        branch.getName())
+                        );
+                    }
+                }
+            }
+        }
+
+        // Notify admins with a summary if there are issues
+        if (lowStockCount > 0 || outOfStockCount > 0) {
+            for (User admin : admins) {
+                notificationService.createNotification(
+                        admin.getId(),
+                        NotificationType.LOW_STOCK,
+                        NotificationPriority.HIGH,
+                        "Stock Level Summary",
+                        String.format("%d low-stock and %d out-of-stock items across all branches",
+                                lowStockCount, outOfStockCount)
+                );
+            }
+        }
+
+        log.info("Stock level check complete. Low stock: {}, Out of stock: {}", lowStockCount, outOfStockCount);
     }
 }
