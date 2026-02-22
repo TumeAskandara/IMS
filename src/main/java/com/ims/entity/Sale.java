@@ -1,5 +1,6 @@
 package com.ims.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.ims.enums.PaymentMethod;
 import com.ims.enums.SaleStatus;
@@ -64,6 +65,13 @@ public class Sale extends BaseEntity {
     @Column(name = "total_amount", precision = 12, scale = 2, nullable = false)
     private BigDecimal totalAmount;
 
+    @Column(name = "returned_amount", precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal returnedAmount = BigDecimal.ZERO;
+
+    @Column(name = "net_amount", precision = 12, scale = 2)
+    private BigDecimal netAmount;
+
     @Column(name = "amount_paid", precision = 12, scale = 2, nullable = false)
     private BigDecimal amountPaid;
 
@@ -86,6 +94,11 @@ public class Sale extends BaseEntity {
     @Builder.Default
     private List<SaleItem> saleItems = new ArrayList<>();
 
+    @OneToMany(mappedBy = "sale")
+    @JsonIgnore
+    @Builder.Default
+    private List<SaleReturn> saleReturns = new ArrayList<>();
+
     public void addSaleItem(SaleItem item) {
         saleItems.add(item);
         item.setSale(this);
@@ -96,5 +109,32 @@ public class Sale extends BaseEntity {
         item.setSale(null);
     }
 
+    @PrePersist
+    @PreUpdate
+    private void calculateNetAmount() {
+        if (totalAmount != null) {
+            if (returnedAmount == null) {
+                returnedAmount = BigDecimal.ZERO;
+            }
+            this.netAmount = totalAmount.subtract(returnedAmount);
+        }
+    }
 
+    public void applyReturn(BigDecimal refundAmount) {
+        if (returnedAmount == null) {
+            returnedAmount = BigDecimal.ZERO;
+        }
+        this.returnedAmount = this.returnedAmount.add(refundAmount);
+        this.netAmount = this.totalAmount.subtract(this.returnedAmount);
+
+        if (this.returnedAmount.compareTo(this.totalAmount) >= 0) {
+            this.status = SaleStatus.REFUNDED;
+        } else if (this.returnedAmount.compareTo(BigDecimal.ZERO) > 0) {
+            this.status = SaleStatus.PARTIALLY_RETURNED;
+        }
+    }
+
+    public boolean isFullyReturned() {
+        return returnedAmount != null && returnedAmount.compareTo(totalAmount) >= 0;
+    }
 }

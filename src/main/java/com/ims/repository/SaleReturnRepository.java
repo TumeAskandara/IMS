@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -39,5 +40,42 @@ public interface SaleReturnRepository extends JpaRepository<SaleReturn, Long> {
 
     List<SaleReturn> findByBranchIdAndReturnDateBetween(Long branchId, LocalDateTime startDate, LocalDateTime endDate);
 
+    @Query("""
+        SELECT SUM(sr.refundAmount) FROM SaleReturn sr
+        WHERE sr.branch.id = :branchId
+        AND sr.returnDate BETWEEN :start AND :end
+        AND sr.status = 'COMPLETED'
+        """)
+    BigDecimal getTotalRefundAmountForBranch(
+            @Param("branchId") Long branchId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
 
+    @Query("""
+        SELECT COUNT(sr) FROM SaleReturn sr
+        WHERE sr.returnDate BETWEEN :start AND :end
+        AND sr.status = 'COMPLETED'
+        """)
+    Long getCompletedReturnsCount(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    @Query("""
+        SELECT SUM(sr.refundAmount) FROM SaleReturn sr
+        WHERE sr.returnDate BETWEEN :start AND :end
+        AND sr.status = 'COMPLETED'
+        """)
+    BigDecimal getTotalRefundAmountAllBranches(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    @Query("""
+        SELECT sr FROM SaleReturn sr
+        WHERE sr.sale.id = :saleId
+        AND sr.status IN ('PENDING', 'APPROVED')
+        """)
+    List<SaleReturn> findPendingOrApprovedBySaleId(@Param("saleId") Long saleId);
 }

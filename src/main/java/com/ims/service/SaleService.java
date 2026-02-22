@@ -3,14 +3,12 @@ package com.ims.service;
 import com.ims.dto.request.SaleItemRequest;
 import com.ims.dto.request.SaleRequest;
 import com.ims.entity.*;
-import com.ims.enums.DebtStatus;
-import com.ims.enums.PaymentMethod;
-import com.ims.enums.SaleStatus;
-import com.ims.enums.StockMovementType;
+import com.ims.enums.*;
 import com.ims.exception.BadRequestException;
 import com.ims.exception.ResourceNotFoundException;
 import com.ims.repository.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -25,6 +23,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class SaleService {
 
     private final SaleRepository saleRepository;
@@ -36,6 +35,7 @@ public class SaleService {
     private final StockMovementRepository stockMovementRepository;
     private final CreditAccountRepository creditAccountRepository;
     private final DebtRepository debtRepository;
+    private final CustomerRepository customerRepository;
 
     @Transactional
     public Sale createSale(SaleRequest request) {
@@ -46,11 +46,59 @@ public class SaleService {
         User seller = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "username", username));
 
+        // Validate customer if provided
+        Customer customer = null;
+        if (request.getCustomerId() != null) {
+            customer = customerRepository.findById(request.getCustomerId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Customer", "id", request.getCustomerId()));
+
+            // Blacklist check: reject sales to BLACKLISTED customers (any payment method)
+            if (customer.getStatus() == CustomerStatus.BLACKLISTED) {
+                throw new BadRequestException(
+                        "Cannot create sale for blacklisted customer: " + customer.getName());
+            }
+
+            // Suspended check: reject credit sales to SUSPENDED customers
+            if (request.getPaymentMethod() == PaymentMethod.CREDIT
+                    && customer.getStatus() == CustomerStatus.SUSPENDED) {
+                throw new BadRequestException(
+                        "Cannot create credit sale for suspended customer: " + customer.getName());
+            }
+        }
+
+        // Validate sale-level amounts
+        if (request.getTaxAmount().compareTo(BigDecimal.ZERO) < 0) {
+            throw new BadRequestException("Tax amount cannot be negative");
+        }
+        if (request.getDiscountAmount().compareTo(BigDecimal.ZERO) < 0) {
+            throw new BadRequestException("Sale discount amount cannot be negative");
+        }
+        if (request.getAmountPaid().compareTo(BigDecimal.ZERO) < 0) {
+            throw new BadRequestException("Amount paid cannot be negative");
+        }
+        if (request.getItems() == null || request.getItems().isEmpty()) {
+            throw new BadRequestException("Sale must have at least one item");
+        }
+
         // Calculate totals
         BigDecimal subtotal = BigDecimal.ZERO;
         List<SaleItem> saleItems = new ArrayList<>();
 
         for (SaleItemRequest itemReq : request.getItems()) {
+            // Validate item-level amounts
+            if (itemReq.getQuantity() <= 0) {
+                throw new BadRequestException("Quantity must be greater than zero");
+            }
+            if (itemReq.getUnitPrice() == null || itemReq.getUnitPrice().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new BadRequestException("Unit price must be greater than zero");
+            }
+            if (itemReq.getDiscountAmount() == null) {
+                itemReq.setDiscountAmount(BigDecimal.ZERO);
+            }
+            if (itemReq.getDiscountAmount().compareTo(BigDecimal.ZERO) < 0) {
+                throw new BadRequestException("Item discount amount cannot be negative");
+            }
+
             Product product = productRepository.findById(itemReq.getProductId())
                     .orElseThrow(() -> new ResourceNotFoundException("Product", "id", itemReq.getProductId()));
 
@@ -70,6 +118,12 @@ public class SaleService {
                     .multiply(BigDecimal.valueOf(itemReq.getQuantity()))
                     .subtract(itemReq.getDiscountAmount());
 
+            // Validate discount doesn't exceed line total
+            if (lineTotal.compareTo(BigDecimal.ZERO) < 0) {
+                throw new BadRequestException(
+                        "Discount amount exceeds line total for product " + product.getName());
+            }
+
             SaleItem saleItem = SaleItem.builder()
                     .product(product)
                     .quantity(itemReq.getQuantity())
@@ -88,6 +142,18 @@ public class SaleService {
 
         BigDecimal amountDue = totalAmount.subtract(request.getAmountPaid());
 
+        // Credit limit enforcement: before creating a credit sale, check available credit
+        if (request.getPaymentMethod() == PaymentMethod.CREDIT
+                && amountDue.compareTo(BigDecimal.ZERO) > 0
+                && customer != null) {
+            if (customer.getAvailableCredit().compareTo(amountDue) < 0) {
+                throw new BadRequestException(
+                        "Credit limit exceeded for customer " + customer.getName() +
+                        ". Available credit: " + customer.getAvailableCredit() +
+                        ", Amount due: " + amountDue);
+            }
+        }
+
         // Determine sale status
         SaleStatus status;
         if (request.getPaymentMethod() == PaymentMethod.CREDIT) {
@@ -96,13 +162,11 @@ public class SaleService {
             status = SaleStatus.COMPLETED;
         }
 
-        // Generate invoice number
-        String invoiceNumber = generateInvoiceNumber(branch);
-
         Sale sale = Sale.builder()
-                .invoiceNumber(invoiceNumber)
+                .invoiceNumber(generateInvoiceNumber(branch))
                 .branch(branch)
                 .seller(seller)
+                .customer(customer)
                 .customerName(request.getCustomerName())
                 .customerPhone(request.getCustomerPhone())
                 .customerEmail(request.getCustomerEmail())
@@ -133,7 +197,7 @@ public class SaleService {
         // Handle credit sale
         if (request.getPaymentMethod() == PaymentMethod.CREDIT &&
                 amountDue.compareTo(BigDecimal.ZERO) > 0) {
-            createDebtRecord(savedSale, request.getCreditAccountId(), request.getDueDate());
+            createDebtRecord(savedSale, request.getCreditAccountId(), request.getDueDate(), customer);
         }
 
         return savedSale;
@@ -141,7 +205,7 @@ public class SaleService {
 
     private void updateInventoryForSale(Branch branch, Product product, Integer quantity, Long saleId) {
         BranchInventory inventory = branchInventoryRepository
-                .findByBranchIdAndProductId(branch.getId(), product.getId())
+                .findByBranchIdAndProductIdForUpdate(branch.getId(), product.getId())
                 .orElseThrow(() -> new BadRequestException("Inventory not found"));
 
         int oldQuantity = inventory.getQuantityOnHand();
@@ -166,7 +230,7 @@ public class SaleService {
         stockMovementRepository.save(movement);
     }
 
-    private void createDebtRecord(Sale sale, Long creditAccountId, String dueDateStr) {
+    private void createDebtRecord(Sale sale, Long creditAccountId, String dueDateStr, Customer customer) {
         CreditAccount creditAccount;
         if (creditAccountId != null) {
             creditAccount = creditAccountRepository.findById(creditAccountId)
@@ -202,14 +266,22 @@ public class SaleService {
         creditAccount.setTotalCreditUsed(
                 creditAccount.getTotalCreditUsed().add(sale.getAmountDue()));
         creditAccountRepository.save(creditAccount);
+
+        // Update Customer.currentDebt so credit limit enforcement stays accurate
+        if (customer != null) {
+            customer.addDebt(sale.getAmountDue());
+            customerRepository.save(customer);
+        }
     }
 
     private String generateInvoiceNumber(Branch branch) {
-        Long count = saleRepository.getTodaySalesCount(branch.getId(), LocalDateTime.now().toLocalDate().atStartOfDay());
+        LocalDateTime yearStart = LocalDateTime.now().withMonth(1).withDayOfMonth(1).toLocalDate().atStartOfDay();
+        Long count = saleRepository.getYearlySalesCount(branch.getId(), yearStart);
+        long sequence = count + 1;
         return String.format("%s-INV-%d-%05d",
                 branch.getCode(),
                 LocalDateTime.now().getYear(),
-                count + 1);
+                sequence);
     }
 
     // ==========================================

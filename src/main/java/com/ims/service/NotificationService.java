@@ -5,6 +5,7 @@ import com.ims.entity.Notification;
 import com.ims.entity.User;
 import com.ims.enums.NotificationPriority;
 import com.ims.enums.NotificationType;
+import com.ims.enums.Role;
 import com.ims.exception.ResourceNotFoundException;
 import com.ims.repository.NotificationRepository;
 import com.ims.repository.UserRepository;
@@ -14,6 +15,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -43,8 +46,20 @@ public class NotificationService {
 
     public void createNotificationForAllAdmins(NotificationType type, NotificationPriority priority,
                                              String title, String message) {
-        // This could be enhanced to find all admin users and create notifications
-        log.info("Creating system-wide notification: {}", title);
+        List<User> adminsAndManagers = new java.util.ArrayList<>(userRepository.findByRole(Role.ADMIN));
+        adminsAndManagers.addAll(userRepository.findByRole(Role.MANAGER));
+
+        for (User user : adminsAndManagers) {
+            Notification notification = Notification.builder()
+                    .type(type)
+                    .priority(priority)
+                    .title(title)
+                    .message(message)
+                    .user(user)
+                    .build();
+            notificationRepository.save(notification);
+        }
+        log.info("Created {} notification for {} admin/manager users: {}", priority, adminsAndManagers.size(), title);
     }
 
     @Transactional(readOnly = true)

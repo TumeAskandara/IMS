@@ -15,6 +15,8 @@ public class SaleReturnItemDTO {
     private Integer quantityReturned;
     private BigDecimal unitPrice;
     private BigDecimal subtotal;
+    private BigDecimal refundPercentage;
+    private BigDecimal refundAmount;
     private String returnReason;
     private String condition;
 }

@@ -38,4 +38,7 @@ public interface DebtRepository extends JpaRepository<Debt, Long> {
     
     @Query("SELECT COUNT(d) FROM Debt d WHERE d.status IN ('PENDING', 'PARTIALLY_PAID')")
     Long getActiveDebtsCount();
+
+    @Query("SELECT d FROM Debt d WHERE d.dueDate < :today AND d.status IN ('PENDING', 'PARTIALLY_PAID')")
+    List<Debt> findNewlyOverdueDebts(@Param("today") LocalDate today);
 }

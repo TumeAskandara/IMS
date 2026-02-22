@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 public class DashboardService {
 
     private final SaleRepository saleRepository;
+    private final SaleReturnRepository saleReturnRepository;
     private final ProductRepository productRepository;
     private final BranchRepository branchRepository;
     private final DebtRepository debtRepository;
@@ -24,26 +25,67 @@ public class DashboardService {
         LocalDateTime startOfMonth = LocalDateTime.now().withDayOfMonth(1).withHour(0).withMinute(0);
         LocalDateTime now = LocalDateTime.now();
 
-        BigDecimal totalRevenue = branchId != null ? 
-                saleRepository.getTotalSalesForBranch(branchId, startOfMonth, now) :
-                BigDecimal.ZERO;
+        BigDecimal grossRevenue;
+        BigDecimal netRevenue;
+        BigDecimal totalReturns;
+        Long totalSales;
+        BigDecimal stockValue;
+        Integer lowStockCount;
 
-        Long totalSales = branchId != null ?
-                saleRepository.getTodaySalesCount(branchId, startOfMonth) :
-                0L;
+        if (branchId != null) {
+            // Branch-specific data
+            BigDecimal gross = saleRepository.getTotalSalesForBranch(branchId, startOfMonth, now);
+            grossRevenue = gross != null ? gross : BigDecimal.ZERO;
+
+            BigDecimal net = saleRepository.getNetSalesForBranch(branchId, startOfMonth, now);
+            netRevenue = net != null ? net : BigDecimal.ZERO;
+
+            BigDecimal returns = saleRepository.getTotalReturnsForBranch(branchId, startOfMonth, now);
+            totalReturns = returns != null ? returns : BigDecimal.ZERO;
+
+            BigDecimal refunds = saleReturnRepository.getTotalRefundAmountForBranch(branchId, startOfMonth, now);
+            if (refunds != null && refunds.compareTo(totalReturns) > 0) {
+                totalReturns = refunds;
+            }
+
+            totalSales = saleRepository.getSalesCountSince(branchId, startOfMonth);
+            stockValue = branchInventoryRepository.getTotalStockValueForBranch(branchId);
+            lowStockCount = branchInventoryRepository.findLowStockItems(branchId).size();
+        } else {
+            // All branches aggregated data
+            BigDecimal gross = saleRepository.getTotalSalesAllBranches(startOfMonth, now);
+            grossRevenue = gross != null ? gross : BigDecimal.ZERO;
+
+            BigDecimal net = saleRepository.getNetSalesAllBranches(startOfMonth, now);
+            netRevenue = net != null ? net : BigDecimal.ZERO;
+
+            BigDecimal returns = saleRepository.getTotalReturnsAllBranches(startOfMonth, now);
+            totalReturns = returns != null ? returns : BigDecimal.ZERO;
+
+            BigDecimal refunds = saleReturnRepository.getTotalRefundAmountAllBranches(startOfMonth, now);
+            if (refunds != null && refunds.compareTo(totalReturns) > 0) {
+                totalReturns = refunds;
+            }
+
+            totalSales = saleRepository.getSalesCountSinceAllBranches(startOfMonth);
+            stockValue = branchInventoryRepository.getTotalStockValue();
+            lowStockCount = branchInventoryRepository.findAllLowStockItems().size();
+        }
+
+        Long returnsCount = saleReturnRepository.getCompletedReturnsCount(startOfMonth, now);
+        Long totalReturnsCount = returnsCount != null ? returnsCount : 0L;
 
         BigDecimal totalOutstanding = debtRepository.getTotalOutstandingDebt();
         BigDecimal overdueDebt = debtRepository.getTotalOverdueDebt();
         Long activeDebtsCount = debtRepository.getActiveDebtsCount();
 
-        Integer lowStockCount = branchId != null ?
-                branchInventoryRepository.findLowStockItems(branchId).size() :
-                0;
-
         return DashboardSummary.builder()
-                .totalRevenue(totalRevenue != null ? totalRevenue : BigDecimal.ZERO)
+                .totalRevenue(netRevenue)
+                .grossRevenue(grossRevenue)
+                .totalReturns(totalReturns)
+                .totalReturnsCount(totalReturnsCount)
                 .totalSales(totalSales != null ? totalSales : 0)
-                .totalStockValue(BigDecimal.ZERO) // Calculate if needed
+                .totalStockValue(stockValue != null ? stockValue : BigDecimal.ZERO)
                 .totalOutstandingDebt(totalOutstanding != null ? totalOutstanding : BigDecimal.ZERO)
                 .overdueDebt(overdueDebt != null ? overdueDebt : BigDecimal.ZERO)
                 .activeDebtsCount(activeDebtsCount != null ? activeDebtsCount : 0)

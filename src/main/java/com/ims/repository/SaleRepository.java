@@ -132,10 +132,10 @@ public interface SaleRepository extends JpaRepository<Sale, Long> {
     // ==========================================
 
     @Query("""
-        SELECT SUM(s.totalAmount) FROM Sale s 
-        WHERE s.branch.id = :branchId 
-        AND s.saleDate BETWEEN :start AND :end 
-        AND s.status = 'COMPLETED'
+        SELECT SUM(s.totalAmount) FROM Sale s
+        WHERE s.branch.id = :branchId
+        AND s.saleDate BETWEEN :start AND :end
+        AND s.status IN ('COMPLETED', 'PARTIALLY_RETURNED')
         AND s.isDeleted = false
         """)
     BigDecimal getTotalSalesForBranch(
@@ -145,14 +145,97 @@ public interface SaleRepository extends JpaRepository<Sale, Long> {
     );
 
     @Query("""
-        SELECT COUNT(s) FROM Sale s 
-        WHERE s.branch.id = :branchId 
-        AND s.saleDate >= :today
+        SELECT SUM(s.netAmount) FROM Sale s
+        WHERE s.branch.id = :branchId
+        AND s.saleDate BETWEEN :start AND :end
+        AND s.status IN ('COMPLETED', 'PARTIALLY_RETURNED')
         AND s.isDeleted = false
         """)
-    Long getTodaySalesCount(
+    BigDecimal getNetSalesForBranch(
             @Param("branchId") Long branchId,
-            @Param("today") LocalDateTime today
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    @Query("""
+        SELECT SUM(s.returnedAmount) FROM Sale s
+        WHERE s.branch.id = :branchId
+        AND s.saleDate BETWEEN :start AND :end
+        AND s.returnedAmount > 0
+        AND s.isDeleted = false
+        """)
+    BigDecimal getTotalReturnsForBranch(
+            @Param("branchId") Long branchId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    @Query("""
+        SELECT COUNT(s) FROM Sale s
+        WHERE s.branch.id = :branchId
+        AND s.saleDate >= :yearStart
+        AND s.isDeleted = false
+        """)
+    Long getYearlySalesCount(
+            @Param("branchId") Long branchId,
+            @Param("yearStart") LocalDateTime yearStart
+    );
+
+    @Query("""
+        SELECT COUNT(s) FROM Sale s
+        WHERE s.branch.id = :branchId
+        AND s.saleDate >= :since
+        AND s.isDeleted = false
+        """)
+    Long getSalesCountSince(
+            @Param("branchId") Long branchId,
+            @Param("since") LocalDateTime since
+    );
+
+    // ==========================================
+    // ALL-BRANCH AGGREGATION QUERIES
+    // ==========================================
+
+    @Query("""
+        SELECT SUM(s.totalAmount) FROM Sale s
+        WHERE s.saleDate BETWEEN :start AND :end
+        AND s.status IN ('COMPLETED', 'PARTIALLY_RETURNED')
+        AND s.isDeleted = false
+        """)
+    BigDecimal getTotalSalesAllBranches(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    @Query("""
+        SELECT SUM(s.netAmount) FROM Sale s
+        WHERE s.saleDate BETWEEN :start AND :end
+        AND s.status IN ('COMPLETED', 'PARTIALLY_RETURNED')
+        AND s.isDeleted = false
+        """)
+    BigDecimal getNetSalesAllBranches(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    @Query("""
+        SELECT SUM(s.returnedAmount) FROM Sale s
+        WHERE s.saleDate BETWEEN :start AND :end
+        AND s.returnedAmount > 0
+        AND s.isDeleted = false
+        """)
+    BigDecimal getTotalReturnsAllBranches(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    @Query("""
+        SELECT COUNT(s) FROM Sale s
+        WHERE s.saleDate >= :since
+        AND s.isDeleted = false
+        """)
+    Long getSalesCountSinceAllBranches(
+            @Param("since") LocalDateTime since
     );
 
     // ==========================================

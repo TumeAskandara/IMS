@@ -14,6 +14,9 @@ import java.math.BigDecimal;
 public class DashboardSummary {
     
     private BigDecimal totalRevenue;
+    private BigDecimal grossRevenue;
+    private BigDecimal totalReturns;
+    private Long totalReturnsCount;
     private Long totalSales;
     private BigDecimal totalStockValue;
     private BigDecimal totalOutstandingDebt;

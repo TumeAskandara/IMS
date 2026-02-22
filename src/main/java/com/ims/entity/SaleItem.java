@@ -31,6 +31,10 @@ public class SaleItem extends BaseEntity {
     @Column(nullable = false)
     private Integer quantity;
 
+    @Column(name = "quantity_returned")
+    @Builder.Default
+    private Integer quantityReturned = 0;
+
     @Column(name = "unit_price", precision = 10, scale = 2, nullable = false)
     private BigDecimal unitPrice;
 
@@ -45,8 +49,19 @@ public class SaleItem extends BaseEntity {
         return lineTotal;
     }
 
-    // Alternative: Calculate subtotal dynamically
-    // public BigDecimal getSubtotal() {
-    //     return unitPrice.multiply(BigDecimal.valueOf(quantity)).subtract(discountAmount);
-    // }
+    public int getReturnableQuantity() {
+        return quantity - (quantityReturned != null ? quantityReturned : 0);
+    }
+
+    public void addReturnedQuantity(int qty) {
+        if (quantityReturned == null) {
+            quantityReturned = 0;
+        }
+        if (quantityReturned + qty > quantity) {
+            throw new IllegalArgumentException(
+                    "Total returned quantity (" + (quantityReturned + qty) +
+                    ") cannot exceed original quantity (" + quantity + ")");
+        }
+        this.quantityReturned += qty;
+    }
 }

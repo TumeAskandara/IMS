@@ -24,7 +24,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -33,6 +32,7 @@ public class DebtService {
     private final DebtRepository debtRepository;
     private final DebtPaymentRepository debtPaymentRepository;
     private final CreditAccountRepository creditAccountRepository;
+    private final CustomerRepository customerRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
 
@@ -93,9 +93,18 @@ public class DebtService {
 
         // Update credit account
         CreditAccount creditAccount = debt.getCreditAccount();
-        creditAccount.setTotalCreditUsed(
-                creditAccount.getTotalCreditUsed().subtract(request.getAmount()));
-        creditAccountRepository.save(creditAccount);
+        if (creditAccount != null) {
+            creditAccount.setTotalCreditUsed(
+                    creditAccount.getTotalCreditUsed().subtract(request.getAmount()));
+            creditAccountRepository.save(creditAccount);
+        }
+
+        // Update Customer.currentDebt so credit limits stay accurate
+        Customer customer = debt.getSale().getCustomer();
+        if (customer != null) {
+            customer.reduceDebt(request.getAmount());
+            customerRepository.save(customer);
+        }
 
         // Notify managers that payment was received
         List<User> managers = userRepository.findByRole(Role.MANAGER);
@@ -133,24 +142,19 @@ public class DebtService {
     @Scheduled(cron = "0 0 9 * * *")
     @Transactional
     public void checkAndUpdateOverdueDebts() {
-        LocalDate now = LocalDate.now();
+        // Targeted query: only fetches debts that are past due and not yet marked OVERDUE/FULLY_PAID
+        List<Debt> newlyOverdueDebts = debtRepository.findNewlyOverdueDebts(LocalDate.now());
 
-        // Find all overdue debts
-        List<Debt> overdueDebts = debtRepository.findAll().stream()
-                .filter(debt -> debt.getDueDate() != null)
-                .filter(debt -> debt.getDueDate().isBefore(now))
-                .filter(debt -> debt.getStatus() != DebtStatus.FULLY_PAID)
-                .collect(Collectors.toList());
+        if (newlyOverdueDebts.isEmpty()) {
+            return;
+        }
 
-        // Get all managers
+        // Get all managers once
         List<User> managers = userRepository.findByRole(Role.MANAGER);
 
-        for (Debt debt : overdueDebts) {
-            // Update status to overdue
-            if (debt.getStatus() != DebtStatus.OVERDUE) {
-                debt.setStatus(DebtStatus.OVERDUE);
-                debtRepository.save(debt);
-            }
+        for (Debt debt : newlyOverdueDebts) {
+            debt.setStatus(DebtStatus.OVERDUE);
+            debtRepository.save(debt);
 
             // Notify managers
             for (User manager : managers) {

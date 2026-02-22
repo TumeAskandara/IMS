@@ -16,7 +16,9 @@ public class SaleRequest {
     
     @NotNull(message = "Branch ID is required")
     private Long branchId;
-    
+
+    private Long customerId;
+
     private String customerName;
     
     private String customerPhone;

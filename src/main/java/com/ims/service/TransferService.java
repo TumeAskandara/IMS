@@ -100,10 +100,11 @@ public class TransferService {
         User approvedBy = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "username", username));
 
-        // Check stock availability
+        // Validate stock availability for ALL items first (before reserving any)
+        List<BranchInventory> inventoriesToReserve = new ArrayList<>();
         for (TransferItem item : transfer.getTransferItems()) {
             BranchInventory inventory = branchInventoryRepository
-                    .findByBranchIdAndProductId(transfer.getSourceBranch().getId(), item.getProduct().getId())
+                    .findByBranchIdAndProductIdForUpdate(transfer.getSourceBranch().getId(), item.getProduct().getId())
                     .orElseThrow(() -> new BadRequestException(
                             "Product " + item.getProduct().getName() + " not available in source branch"));
 
@@ -113,7 +114,15 @@ public class TransferService {
                                 ". Available: " + inventory.getQuantityAvailable());
             }
 
-            // Reserve stock
+            inventoriesToReserve.add(inventory);
+        }
+
+        // All validations passed — now reserve stock
+        List<TransferItem> items = transfer.getTransferItems();
+        for (int i = 0; i < items.size(); i++) {
+            BranchInventory inventory = inventoriesToReserve.get(i);
+            TransferItem item = items.get(i);
+
             inventory.setQuantityReserved(inventory.getQuantityReserved() + item.getQuantityRequested());
             inventory.setQuantityAvailable(inventory.getQuantityOnHand() - inventory.getQuantityReserved());
             branchInventoryRepository.save(inventory);
@@ -167,7 +176,7 @@ public class TransferService {
         // Deduct stock from source
         for (TransferItem item : transfer.getTransferItems()) {
             BranchInventory inventory = branchInventoryRepository
-                    .findByBranchIdAndProductId(transfer.getSourceBranch().getId(), item.getProduct().getId())
+                    .findByBranchIdAndProductIdForUpdate(transfer.getSourceBranch().getId(), item.getProduct().getId())
                     .orElseThrow();
 
             int oldQuantity = inventory.getQuantityOnHand();
@@ -224,7 +233,7 @@ public class TransferService {
 
             // Add stock to destination
             BranchInventory inventory = branchInventoryRepository
-                    .findByBranchIdAndProductId(transfer.getDestinationBranch().getId(), item.getProduct().getId())
+                    .findByBranchIdAndProductIdForUpdate(transfer.getDestinationBranch().getId(), item.getProduct().getId())
                     .orElse(BranchInventory.builder()
                             .branch(transfer.getDestinationBranch())
                             .product(item.getProduct())

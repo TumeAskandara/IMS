@@ -69,9 +69,9 @@ public class AnalyticsService {
             );
         }
 
-        // Calculate gross sales
+        // Calculate gross sales (excluding tax — tax is collected on behalf of government, not revenue)
         BigDecimal grossRevenue = sales.stream()
-                .map(Sale::getTotalAmount)
+                .map(sale -> sale.getTotalAmount().subtract(sale.getTaxAmount() != null ? sale.getTaxAmount() : BigDecimal.ZERO))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal totalCost = sales.stream()
@@ -123,17 +123,17 @@ public class AnalyticsService {
 
         BigDecimal cashSales = sales.stream()
                 .filter(s -> "CASH".equals(s.getPaymentMethod().name()))
-                .map(Sale::getTotalAmount)
+                .map(sale -> sale.getTotalAmount().subtract(sale.getTaxAmount() != null ? sale.getTaxAmount() : BigDecimal.ZERO))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal creditSales = sales.stream()
                 .filter(s -> "CREDIT".equals(s.getPaymentMethod().name()))
-                .map(Sale::getTotalAmount)
+                .map(sale -> sale.getTotalAmount().subtract(sale.getTaxAmount() != null ? sale.getTaxAmount() : BigDecimal.ZERO))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal cardSales = sales.stream()
                 .filter(s -> "CARD".equals(s.getPaymentMethod().name()))
-                .map(Sale::getTotalAmount)
+                .map(sale -> sale.getTotalAmount().subtract(sale.getTaxAmount() != null ? sale.getTaxAmount() : BigDecimal.ZERO))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal avgSaleValue = sales.isEmpty() ? BigDecimal.ZERO :
@@ -360,7 +360,7 @@ public class AnalyticsService {
                     List<Expense> dayExpenses = expensesByDate.getOrDefault(date, Collections.emptyList());
 
                     BigDecimal dayGrossRevenue = daySales.stream()
-                            .map(Sale::getTotalAmount)
+                            .map(sale -> sale.getTotalAmount().subtract(sale.getTaxAmount() != null ? sale.getTaxAmount() : BigDecimal.ZERO))
                             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
                     BigDecimal dayReturnsAmount = dayReturns.stream()
@@ -438,7 +438,7 @@ public class AnalyticsService {
                     );
 
                     BigDecimal grossRevenue = branchSales.stream()
-                            .map(Sale::getTotalAmount)
+                            .map(sale -> sale.getTotalAmount().subtract(sale.getTaxAmount() != null ? sale.getTaxAmount() : BigDecimal.ZERO))
                             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
                     BigDecimal returnsAmount = branchReturns.stream()
@@ -521,7 +521,7 @@ public class AnalyticsService {
         );
 
         BigDecimal grossRevenue = sales.stream()
-                .map(Sale::getTotalAmount)
+                .map(sale -> sale.getTotalAmount().subtract(sale.getTaxAmount() != null ? sale.getTaxAmount() : BigDecimal.ZERO))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal returnsAmount = returns.stream()

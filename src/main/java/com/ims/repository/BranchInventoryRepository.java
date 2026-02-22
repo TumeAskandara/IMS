@@ -3,9 +3,11 @@ package com.ims.repository;
 import com.ims.entity.Branch;
 import com.ims.entity.BranchInventory;
 import com.ims.entity.Product;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -22,7 +24,17 @@ public interface BranchInventoryRepository extends JpaRepository<BranchInventory
 
     Optional<BranchInventory> findByBranchIdAndProductId(Long branchId, Long productId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT bi FROM BranchInventory bi WHERE bi.branch.id = :branchId AND bi.product.id = :productId")
+    Optional<BranchInventory> findByBranchIdAndProductIdForUpdate(
+            @Param("branchId") Long branchId, @Param("productId") Long productId);
+
     Optional<BranchInventory> findByBranchAndProduct(Branch branch, Product product);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT bi FROM BranchInventory bi WHERE bi.branch = :branch AND bi.product = :product")
+    Optional<BranchInventory> findByBranchAndProductForUpdate(
+            @Param("branch") Branch branch, @Param("product") Product product);
 
     List<BranchInventory> findByBranchId(Long branchId);
 
@@ -78,4 +90,22 @@ public interface BranchInventoryRepository extends JpaRepository<BranchInventory
     @Query("SELECT bi FROM BranchInventory bi WHERE bi.branch.id = :branchId AND " +
             "bi.quantityOnHand > 0")
     Page<BranchInventory> findInStockItems(@Param("branchId") Long branchId, Pageable pageable);
+
+    // ==========================================
+    // ALL-BRANCH QUERIES
+    // ==========================================
+
+    // Low stock items across all branches
+    @Query("SELECT bi FROM BranchInventory bi WHERE " +
+            "bi.quantityOnHand < bi.product.reorderLevel AND bi.quantityOnHand > 0")
+    List<BranchInventory> findAllLowStockItems();
+
+    // Total stock value across all branches (quantity * cost price)
+    @Query("SELECT COALESCE(SUM(bi.quantityOnHand * bi.product.costPrice), 0) FROM BranchInventory bi")
+    java.math.BigDecimal getTotalStockValue();
+
+    // Total stock value for a specific branch
+    @Query("SELECT COALESCE(SUM(bi.quantityOnHand * bi.product.costPrice), 0) FROM BranchInventory bi " +
+            "WHERE bi.branch.id = :branchId")
+    java.math.BigDecimal getTotalStockValueForBranch(@Param("branchId") Long branchId);
 }

@@ -43,6 +43,12 @@ public class SaleReturnItem {
     @Column(precision = 12, scale = 2, nullable = false)
     private BigDecimal subtotal;
 
+    @Column(name = "refund_percentage", precision = 5, scale = 2)
+    private BigDecimal refundPercentage;
+
+    @Column(name = "refund_amount", precision = 12, scale = 2)
+    private BigDecimal refundAmount;
+
     @Column(nullable = false, length = 500)
     private String returnReason;
 
