@@ -5,4 +5,7 @@ public enum NotificationPriority {
     MEDIUM,     // Normal notifications
     HIGH,       // Important, requires attention
     CRITICAL    // Urgent, immediate action required
+
+
+    //todo
 }
