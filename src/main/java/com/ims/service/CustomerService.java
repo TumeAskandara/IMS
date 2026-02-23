@@ -107,6 +107,24 @@ public class CustomerService {
     }
 
     @Transactional(readOnly = true)
+    public Page<CustomerDTO> searchCustomersByBranch(Long branchId, String query, Pageable pageable) {
+        return customerRepository.searchCustomersByBranch(branchId, query, pageable).map(this::mapToDTO);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CustomerDTO> getTopCustomersByBranch(Long branchId, int limit) {
+        Pageable pageable = org.springframework.data.domain.PageRequest.of(0, limit);
+        return customerRepository.findTopCustomersByBranch(branchId, pageable).stream()
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public Page<CustomerDTO> getCustomersWithDebtByBranch(Long branchId, Pageable pageable) {
+        return customerRepository.findCustomersWithDebtByBranch(branchId, pageable).map(this::mapToDTO);
+    }
+
+    @Transactional(readOnly = true)
     public List<CustomerDTO> getTopCustomers(int limit) {
         Pageable pageable = org.springframework.data.domain.PageRequest.of(0, limit);
         return customerRepository.findTopCustomers(pageable).stream()
@@ -244,6 +262,7 @@ public class CustomerService {
                 .lifetimeValue(customer.getLifetimeValue())
                 .totalPurchases(customer.getTotalPurchases())
                 .lastPurchaseDate(customer.getLastPurchaseDate())
+                .branchId(customer.getBranch().getId())
                 .branchName(customer.getBranch().getName())
                 .notes(customer.getNotes())
                 .createdAt(customer.getCreatedAt())

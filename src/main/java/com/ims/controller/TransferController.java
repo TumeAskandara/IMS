@@ -4,6 +4,7 @@ import com.ims.dto.request.TransferRequest;
 import com.ims.dto.response.ApiResponse;
 import com.ims.dto.response.StockTransferDTO;
 import com.ims.service.TransferService;
+import com.ims.util.SecurityUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -28,12 +29,14 @@ import java.util.List;
 public class TransferController {
 
     private final TransferService transferService;
+    private final SecurityUtils securityUtils;
 
     @PostMapping
     @Operation(summary = "Create transfer", description = "Create new transfer request")
     public ResponseEntity<ApiResponse<StockTransferDTO>> createTransfer(
             @Valid @RequestBody TransferRequest request
     ) {
+        securityUtils.validateTransferAccess(request.getSourceBranchId(), request.getDestinationBranchId());
         StockTransferDTO transfer = transferService.createTransfer(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Transfer created successfully", transfer));
@@ -46,7 +49,13 @@ public class TransferController {
             @RequestParam(defaultValue = "20") int size
     ) {
         Pageable pageable = PageRequest.of(page, size);
-        Page<StockTransferDTO> transfers = transferService.getAllTransfers(pageable);
+        Long branchId = securityUtils.resolveBranchId(null);
+        Page<StockTransferDTO> transfers;
+        if (branchId != null) {
+            transfers = transferService.getTransfersByBranch(branchId, pageable);
+        } else {
+            transfers = transferService.getAllTransfers(pageable);
+        }
         return ResponseEntity.ok(ApiResponse.success(transfers));
     }
 
@@ -54,12 +63,15 @@ public class TransferController {
     @Operation(summary = "Get transfer details")
     public ResponseEntity<ApiResponse<StockTransferDTO>> getTransferById(@PathVariable Long id) {
         StockTransferDTO transfer = transferService.getTransferById(id);
+        securityUtils.validateTransferAccess(transfer.getSourceBranchId(), transfer.getDestinationBranchId());
         return ResponseEntity.ok(ApiResponse.success(transfer));
     }
 
     @PatchMapping("/{id}/approve")
     @Operation(summary = "Approve transfer")
     public ResponseEntity<ApiResponse<StockTransferDTO>> approveTransfer(@PathVariable Long id) {
+        StockTransferDTO existing = transferService.getTransferById(id);
+        securityUtils.validateTransferAccess(existing.getSourceBranchId(), existing.getDestinationBranchId());
         StockTransferDTO transfer = transferService.approveTransfer(id);
         return ResponseEntity.ok(ApiResponse.success("Transfer approved", transfer));
     }
@@ -67,6 +79,8 @@ public class TransferController {
     @PatchMapping("/{id}/ship")
     @Operation(summary = "Mark as shipped")
     public ResponseEntity<ApiResponse<StockTransferDTO>> shipTransfer(@PathVariable Long id) {
+        StockTransferDTO existing = transferService.getTransferById(id);
+        securityUtils.validateBranchAccess(existing.getSourceBranchId());
         StockTransferDTO transfer = transferService.shipTransfer(id);
         return ResponseEntity.ok(ApiResponse.success("Transfer shipped", transfer));
     }
@@ -77,6 +91,8 @@ public class TransferController {
             @PathVariable Long id,
             @RequestBody List<Integer> receivedQuantities
     ) {
+        StockTransferDTO existing = transferService.getTransferById(id);
+        securityUtils.validateBranchAccess(existing.getDestinationBranchId());
         StockTransferDTO transfer = transferService.receiveTransfer(id, receivedQuantities);
         return ResponseEntity.ok(ApiResponse.success("Transfer received", transfer));
     }
@@ -87,6 +103,8 @@ public class TransferController {
             @PathVariable Long id,
             @RequestParam String reason
     ) {
+        StockTransferDTO existing = transferService.getTransferById(id);
+        securityUtils.validateTransferAccess(existing.getSourceBranchId(), existing.getDestinationBranchId());
         StockTransferDTO transfer = transferService.rejectTransfer(id, reason);
         return ResponseEntity.ok(ApiResponse.success("Transfer rejected", transfer));
     }

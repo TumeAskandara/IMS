@@ -25,6 +25,7 @@ public class CustomerDTO {
     private BigDecimal lifetimeValue;
     private Integer totalPurchases;
     private LocalDateTime lastPurchaseDate;
+    private Long branchId;
     private String branchName;
     private String notes;
     private LocalDateTime createdAt;

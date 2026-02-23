@@ -40,4 +40,17 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
     
     @Query("SELECT COUNT(c) FROM Customer c WHERE c.branch.id = :branchId AND c.status = :status")
     Long countByBranchAndStatus(@Param("branchId") Long branchId, @Param("status") CustomerStatus status);
+
+    @Query("SELECT c FROM Customer c WHERE c.branch.id = :branchId AND (" +
+           "LOWER(c.name) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+           "LOWER(c.email) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+           "LOWER(c.phone) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+           "LOWER(c.customerId) LIKE LOWER(CONCAT('%', :query, '%')))")
+    Page<Customer> searchCustomersByBranch(@Param("branchId") Long branchId, @Param("query") String query, Pageable pageable);
+
+    @Query("SELECT c FROM Customer c WHERE c.branch.id = :branchId ORDER BY c.lifetimeValue DESC")
+    List<Customer> findTopCustomersByBranch(@Param("branchId") Long branchId, Pageable pageable);
+
+    @Query("SELECT c FROM Customer c WHERE c.branch.id = :branchId AND c.currentDebt > 0 ORDER BY c.currentDebt DESC")
+    Page<Customer> findCustomersWithDebtByBranch(@Param("branchId") Long branchId, Pageable pageable);
 }

@@ -131,6 +131,7 @@ public class ExpenseService {
     private ExpenseDTO mapToDTO(Expense expense) {
         return ExpenseDTO.builder()
                 .id(expense.getId())
+                .branchId(expense.getBranch().getId())
                 .branchName(expense.getBranch().getName())
                 .category(expense.getCategory().name())
                 .description(expense.getDescription())

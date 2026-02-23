@@ -2,9 +2,8 @@ package com.ims.controller;
 
 import com.ims.dto.expense.*;
 import com.ims.dto.response.ApiResponse;
-import com.ims.entity.User;
-import com.ims.repository.UserRepository;
 import com.ims.service.ExpenseService;
+import com.ims.util.SecurityUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -18,7 +17,6 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -31,17 +29,17 @@ import java.time.LocalDate;
 public class ExpenseController {
 
     private final ExpenseService expenseService;
-    private final UserRepository userRepository;
+    private final SecurityUtils securityUtils;
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     @Operation(summary = "Record expense", description = "Record a simple expense (only 4 fields required)")
     public ResponseEntity<ApiResponse<ExpenseDTO>> createExpense(
             @Valid @RequestBody ExpenseRequest request,
-            @RequestParam Long branchId,
-            Authentication authentication) {
+            @RequestParam Long branchId) {
 
-        Long userId = getUserIdFromAuth(authentication);
+        securityUtils.validateBranchAccess(branchId);
+        Long userId = securityUtils.getCurrentUser().getId();
         ExpenseDTO expense = expenseService.createExpense(request, userId, branchId);
 
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -53,6 +51,7 @@ public class ExpenseController {
     @Operation(summary = "Get expense by ID")
     public ResponseEntity<ApiResponse<ExpenseDTO>> getExpenseById(@PathVariable Long id) {
         ExpenseDTO expense = expenseService.getExpenseById(id);
+        securityUtils.validateBranchAccess(expense.getBranchId());
         return ResponseEntity.ok(ApiResponse.success(expense));
     }
 
@@ -64,6 +63,7 @@ public class ExpenseController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
+        securityUtils.validateBranchAccess(branchId);
         Pageable pageable = PageRequest.of(page, size);
         Page<ExpenseDTO> expenses = expenseService.getExpensesByBranch(branchId, pageable);
         return ResponseEntity.ok(ApiResponse.success(expenses));
@@ -77,6 +77,7 @@ public class ExpenseController {
             @Parameter(description = "Date", example = "2026-02-16")
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
 
+        securityUtils.validateBranchAccess(branchId);
         ExpenseSummaryDTO summary = expenseService.getDailySummary(branchId, date);
         return ResponseEntity.ok(ApiResponse.success(summary));
     }
@@ -87,12 +88,5 @@ public class ExpenseController {
     public ResponseEntity<ApiResponse<Void>> deleteExpense(@PathVariable Long id) {
         expenseService.deleteExpense(id);
         return ResponseEntity.ok(ApiResponse.success("Expense deleted", null));
-    }
-
-    private Long getUserIdFromAuth(Authentication authentication) {
-        String username = authentication.getName();
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found: " + username));
-        return user.getId();
     }
 }

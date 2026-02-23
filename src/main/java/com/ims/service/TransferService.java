@@ -310,6 +310,12 @@ public class TransferService {
         return transfers.map(this::mapToDTO);
     }
 
+    @Transactional(readOnly = true)
+    public Page<StockTransferDTO> getTransfersByBranch(Long branchId, Pageable pageable) {
+        return stockTransferRepository.findBySourceBranchIdOrDestinationBranchId(branchId, branchId, pageable)
+                .map(this::mapToDTO);
+    }
+
     // Private helper methods
 
     private StockTransfer getTransferEntityById(Long id) {

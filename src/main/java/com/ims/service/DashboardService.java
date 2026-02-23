@@ -72,12 +72,23 @@ public class DashboardService {
             lowStockCount = branchInventoryRepository.findAllLowStockItems().size();
         }
 
-        Long returnsCount = saleReturnRepository.getCompletedReturnsCount(startOfMonth, now);
-        Long totalReturnsCount = returnsCount != null ? returnsCount : 0L;
+        Long returnsCount;
+        BigDecimal totalOutstanding;
+        BigDecimal overdueDebt;
+        Long activeDebtsCount;
 
-        BigDecimal totalOutstanding = debtRepository.getTotalOutstandingDebt();
-        BigDecimal overdueDebt = debtRepository.getTotalOverdueDebt();
-        Long activeDebtsCount = debtRepository.getActiveDebtsCount();
+        if (branchId != null) {
+            returnsCount = saleReturnRepository.getCompletedReturnsCountForBranch(branchId, startOfMonth, now);
+            totalOutstanding = debtRepository.getTotalOutstandingDebtForBranch(branchId);
+            overdueDebt = debtRepository.getTotalOverdueDebtForBranch(branchId);
+            activeDebtsCount = debtRepository.getActiveDebtsCountForBranch(branchId);
+        } else {
+            returnsCount = saleReturnRepository.getCompletedReturnsCount(startOfMonth, now);
+            totalOutstanding = debtRepository.getTotalOutstandingDebt();
+            overdueDebt = debtRepository.getTotalOverdueDebt();
+            activeDebtsCount = debtRepository.getActiveDebtsCount();
+        }
+        Long totalReturnsCount = returnsCount != null ? returnsCount : 0L;
 
         return DashboardSummary.builder()
                 .totalRevenue(netRevenue)

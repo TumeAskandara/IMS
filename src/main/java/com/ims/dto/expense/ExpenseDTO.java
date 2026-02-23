@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class ExpenseDTO {
     private Long id;
+    private Long branchId;
     private String branchName;
     private String category;
     private String description;

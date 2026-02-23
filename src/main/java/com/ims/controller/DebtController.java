@@ -6,6 +6,7 @@ import com.ims.entity.Debt;
 import com.ims.entity.DebtPayment;
 import com.ims.enums.DebtStatus;
 import com.ims.service.DebtService;
+import com.ims.util.SecurityUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -30,6 +31,7 @@ import java.util.Map;
 public class DebtController {
 
     private final DebtService debtService;
+    private final SecurityUtils securityUtils;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
@@ -39,7 +41,13 @@ public class DebtController {
             @RequestParam(defaultValue = "20") int size
     ) {
         Pageable pageable = PageRequest.of(page, size);
-        Page<Debt> debts = debtService.getAllDebts(pageable);
+        Long branchId = securityUtils.resolveBranchId(null);
+        Page<Debt> debts;
+        if (branchId != null) {
+            debts = debtService.getDebtsByBranch(branchId, pageable);
+        } else {
+            debts = debtService.getAllDebts(pageable);
+        }
         return ResponseEntity.ok(ApiResponse.success(debts));
     }
 
@@ -47,6 +55,7 @@ public class DebtController {
     @Operation(summary = "Get debt details", description = "Get debt with payment history")
     public ResponseEntity<ApiResponse<Debt>> getDebtById(@PathVariable Long id) {
         Debt debt = debtService.getDebtById(id);
+        securityUtils.validateBranchAccess(debt.getSale().getBranch().getId());
         return ResponseEntity.ok(ApiResponse.success(debt));
     }
 
@@ -54,7 +63,13 @@ public class DebtController {
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     @Operation(summary = "Get overdue debts")
     public ResponseEntity<ApiResponse<List<Debt>>> getOverdueDebts() {
-        List<Debt> debts = debtService.getOverdueDebts();
+        Long branchId = securityUtils.resolveBranchId(null);
+        List<Debt> debts;
+        if (branchId != null) {
+            debts = debtService.getOverdueDebtsByBranch(branchId);
+        } else {
+            debts = debtService.getOverdueDebts();
+        }
         return ResponseEntity.ok(ApiResponse.success(debts));
     }
 
@@ -67,7 +82,13 @@ public class DebtController {
             @RequestParam(defaultValue = "20") int size
     ) {
         Pageable pageable = PageRequest.of(page, size);
-        Page<Debt> debts = debtService.getDebtsByStatus(status, pageable);
+        Long branchId = securityUtils.resolveBranchId(null);
+        Page<Debt> debts;
+        if (branchId != null) {
+            debts = debtService.getDebtsByStatusAndBranch(status, branchId, pageable);
+        } else {
+            debts = debtService.getDebtsByStatus(status, pageable);
+        }
         return ResponseEntity.ok(ApiResponse.success(debts));
     }
 
@@ -77,6 +98,8 @@ public class DebtController {
             @PathVariable Long id,
             @Valid @RequestBody DebtPaymentRequest request
     ) {
+        Debt debt = debtService.getDebtById(id);
+        securityUtils.validateBranchAccess(debt.getSale().getBranch().getId());
         DebtPayment payment = debtService.recordPayment(id, request);
         return ResponseEntity.ok(ApiResponse.success("Payment recorded successfully", payment));
     }
@@ -85,7 +108,13 @@ public class DebtController {
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     @Operation(summary = "Get debt summary", description = "Total outstanding, overdue, etc.")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getDebtSummary() {
-        Map<String, Object> summary = debtService.getDebtSummary();
+        Long branchId = securityUtils.resolveBranchId(null);
+        Map<String, Object> summary;
+        if (branchId != null) {
+            summary = debtService.getDebtSummaryForBranch(branchId);
+        } else {
+            summary = debtService.getDebtSummary();
+        }
         return ResponseEntity.ok(ApiResponse.success(summary));
     }
 }

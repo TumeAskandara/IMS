@@ -178,6 +178,12 @@ public class SaleReturnService {
                 .map(this::mapToDTO);
     }
 
+    @Transactional(readOnly = true)
+    public Page<SaleReturnDTO> getReturnsByStatusAndBranch(ReturnStatus status, Long branchId, Pageable pageable) {
+        return returnRepository.findByBranchIdAndStatusOrderByCreatedAtDesc(branchId, status, pageable)
+                .map(this::mapToDTO);
+    }
+
     public SaleReturnDTO approveReturn(Long returnId, Long userId) {
         log.info("Approving and processing return: {}", returnId);
 
@@ -497,6 +503,7 @@ public class SaleReturnService {
                 .refundAmount(saleReturn.getRefundAmount())
                 .processedBy(saleReturn.getProcessedBy() != null ?
                         saleReturn.getProcessedBy().getFullName() : null)
+                .branchId(saleReturn.getBranch().getId())
                 .branchName(saleReturn.getBranch().getName())
                 .items(saleReturn.getItems().stream()
                         .map(this::mapItemToDTO)

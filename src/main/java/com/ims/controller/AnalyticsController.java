@@ -3,6 +3,7 @@ package com.ims.controller;
 import com.ims.dto.analytics.*;
 import com.ims.dto.response.ApiResponse;
 import com.ims.service.AnalyticsService;
+import com.ims.util.SecurityUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -24,6 +25,7 @@ import java.util.List;
 public class AnalyticsController {
 
     private final AnalyticsService analyticsService;
+    private final SecurityUtils securityUtils;
 
     @GetMapping("/sales-summary")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
@@ -36,7 +38,8 @@ public class AnalyticsController {
             @Parameter(description = "Optional branch ID to filter by specific branch")
             @RequestParam(required = false) Long branchId) {
 
-        SalesSummaryDTO summary = analyticsService.getSalesSummary(startDate, endDate, branchId);
+        Long effectiveBranchId = securityUtils.resolveBranchId(branchId);
+        SalesSummaryDTO summary = analyticsService.getSalesSummary(startDate, endDate, effectiveBranchId);
         return ResponseEntity.ok(ApiResponse.success(summary));
     }
 
@@ -47,7 +50,8 @@ public class AnalyticsController {
             @Parameter(description = "Optional branch ID to filter by specific branch")
             @RequestParam(required = false) Long branchId) {
 
-        InventoryValuationDTO valuation = analyticsService.getInventoryValuation(branchId);
+        Long effectiveBranchId = securityUtils.resolveBranchId(branchId);
+        InventoryValuationDTO valuation = analyticsService.getInventoryValuation(effectiveBranchId);
         return ResponseEntity.ok(ApiResponse.success(valuation));
     }
 
@@ -62,7 +66,8 @@ public class AnalyticsController {
             @Parameter(description = "Maximum number of products to return", example = "10")
             @RequestParam(defaultValue = "10") int limit) {
 
-        List<ProductPerformanceDTO> topProducts = analyticsService.getTopProducts(startDate, endDate, limit);
+        Long branchId = securityUtils.resolveBranchId(null);
+        List<ProductPerformanceDTO> topProducts = analyticsService.getTopProducts(startDate, endDate, limit, branchId);
         return ResponseEntity.ok(ApiResponse.success(topProducts));
     }
 
@@ -75,7 +80,8 @@ public class AnalyticsController {
             @Parameter(description = "End date and time (ISO format)", example = "2026-02-28T23:59:59")
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
 
-        List<SalesTrendDTO> trends = analyticsService.getSalesTrends(startDate, endDate);
+        Long branchId = securityUtils.resolveBranchId(null);
+        List<SalesTrendDTO> trends = analyticsService.getSalesTrends(startDate, endDate, branchId);
         return ResponseEntity.ok(ApiResponse.success(trends));
     }
 
@@ -112,7 +118,8 @@ public class AnalyticsController {
             @Parameter(description = "Maximum number of customers to return", example = "20")
             @RequestParam(defaultValue = "20") int limit) {
 
-        List<CustomerInsightDTO> insights = analyticsService.getCustomerInsights(limit);
+        Long branchId = securityUtils.resolveBranchId(null);
+        List<CustomerInsightDTO> insights = analyticsService.getCustomerInsights(limit, branchId);
         return ResponseEntity.ok(ApiResponse.success(insights));
     }
 
@@ -125,10 +132,11 @@ public class AnalyticsController {
             @Parameter(description = "Optional branch ID to filter by specific branch")
             @RequestParam(required = false) Long branchId) {
 
+        Long effectiveBranchId = securityUtils.resolveBranchId(branchId);
         LocalDateTime startOfDay = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
         LocalDateTime endOfDay = LocalDateTime.now().withHour(23).withMinute(59).withSecond(59);
 
-        SalesSummaryDTO summary = analyticsService.getSalesSummary(startOfDay, endOfDay, branchId);
+        SalesSummaryDTO summary = analyticsService.getSalesSummary(startOfDay, endOfDay, effectiveBranchId);
         return ResponseEntity.ok(ApiResponse.success(summary));
     }
 
@@ -139,11 +147,12 @@ public class AnalyticsController {
             @Parameter(description = "Optional branch ID to filter by specific branch")
             @RequestParam(required = false) Long branchId) {
 
+        Long effectiveBranchId = securityUtils.resolveBranchId(branchId);
         LocalDateTime startOfMonth = LocalDateTime.now().withDayOfMonth(1)
                 .withHour(0).withMinute(0).withSecond(0);
         LocalDateTime now = LocalDateTime.now();
 
-        SalesSummaryDTO summary = analyticsService.getSalesSummary(startOfMonth, now, branchId);
+        SalesSummaryDTO summary = analyticsService.getSalesSummary(startOfMonth, now, effectiveBranchId);
         return ResponseEntity.ok(ApiResponse.success(summary));
     }
 

@@ -21,6 +21,7 @@ public class SaleReturnDTO {
     private BigDecimal totalAmount;
     private BigDecimal refundAmount;
     private String processedBy;
+    private Long branchId;
     private String branchName;
     private List<SaleReturnItemDTO> items;
     private String notes;

@@ -41,4 +41,23 @@ public interface DebtRepository extends JpaRepository<Debt, Long> {
 
     @Query("SELECT d FROM Debt d WHERE d.dueDate < :today AND d.status IN ('PENDING', 'PARTIALLY_PAID')")
     List<Debt> findNewlyOverdueDebts(@Param("today") LocalDate today);
+
+    // Branch-filtered queries (debt -> sale -> branch)
+    @Query("SELECT d FROM Debt d WHERE d.sale.branch.id = :branchId AND d.isDeleted = false")
+    Page<Debt> findByBranch(@Param("branchId") Long branchId, Pageable pageable);
+
+    @Query("SELECT d FROM Debt d WHERE d.sale.branch.id = :branchId AND d.dueDate < :today AND d.status IN ('PENDING', 'PARTIALLY_PAID')")
+    List<Debt> findOverdueDebtsByBranch(@Param("branchId") Long branchId, @Param("today") LocalDate today);
+
+    @Query("SELECT d FROM Debt d WHERE d.sale.branch.id = :branchId AND d.status = :status AND d.isDeleted = false")
+    Page<Debt> findByStatusAndBranch(@Param("status") DebtStatus status, @Param("branchId") Long branchId, Pageable pageable);
+
+    @Query("SELECT SUM(d.balanceDue) FROM Debt d WHERE d.sale.branch.id = :branchId AND d.status IN ('PENDING', 'PARTIALLY_PAID')")
+    BigDecimal getTotalOutstandingDebtForBranch(@Param("branchId") Long branchId);
+
+    @Query("SELECT SUM(d.balanceDue) FROM Debt d WHERE d.sale.branch.id = :branchId AND d.status = 'OVERDUE'")
+    BigDecimal getTotalOverdueDebtForBranch(@Param("branchId") Long branchId);
+
+    @Query("SELECT COUNT(d) FROM Debt d WHERE d.sale.branch.id = :branchId AND d.status IN ('PENDING', 'PARTIALLY_PAID')")
+    Long getActiveDebtsCountForBranch(@Param("branchId") Long branchId);
 }

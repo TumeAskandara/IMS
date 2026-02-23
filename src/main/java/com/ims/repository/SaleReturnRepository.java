@@ -78,4 +78,19 @@ public interface SaleReturnRepository extends JpaRepository<SaleReturn, Long> {
         AND sr.status IN ('PENDING', 'APPROVED')
         """)
     List<SaleReturn> findPendingOrApprovedBySaleId(@Param("saleId") Long saleId);
+
+    @Query("""
+        SELECT COUNT(sr) FROM SaleReturn sr
+        WHERE sr.branch.id = :branchId
+        AND sr.returnDate BETWEEN :start AND :end
+        AND sr.status = 'COMPLETED'
+        """)
+    Long getCompletedReturnsCountForBranch(
+            @Param("branchId") Long branchId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    Page<SaleReturn> findByBranchIdAndStatusOrderByCreatedAtDesc(
+            Long branchId, ReturnStatus status, Pageable pageable);
 }

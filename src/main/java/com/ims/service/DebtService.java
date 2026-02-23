@@ -138,6 +138,33 @@ public class DebtService {
         return summary;
     }
 
+    @Transactional(readOnly = true)
+    public Page<Debt> getDebtsByBranch(Long branchId, Pageable pageable) {
+        return debtRepository.findByBranch(branchId, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Debt> getOverdueDebtsByBranch(Long branchId) {
+        return debtRepository.findOverdueDebtsByBranch(branchId, LocalDate.now());
+    }
+
+    @Transactional(readOnly = true)
+    public Page<Debt> getDebtsByStatusAndBranch(DebtStatus status, Long branchId, Pageable pageable) {
+        return debtRepository.findByStatusAndBranch(status, branchId, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> getDebtSummaryForBranch(Long branchId) {
+        Map<String, Object> summary = new HashMap<>();
+        BigDecimal totalOutstanding = debtRepository.getTotalOutstandingDebtForBranch(branchId);
+        BigDecimal totalOverdue = debtRepository.getTotalOverdueDebtForBranch(branchId);
+        Long activeCount = debtRepository.getActiveDebtsCountForBranch(branchId);
+        summary.put("totalOutstanding", totalOutstanding != null ? totalOutstanding : BigDecimal.ZERO);
+        summary.put("totalOverdue", totalOverdue != null ? totalOverdue : BigDecimal.ZERO);
+        summary.put("activeDebtsCount", activeCount != null ? activeCount : 0);
+        return summary;
+    }
+
     // Run this daily to check overdue debts at 9 AM
     @Scheduled(cron = "0 0 9 * * *")
     @Transactional

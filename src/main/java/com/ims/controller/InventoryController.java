@@ -5,6 +5,7 @@ import com.ims.dto.response.ApiResponse;
 import com.ims.entity.BranchInventory;
 import com.ims.entity.StockMovement;
 import com.ims.service.InventoryService;
+import com.ims.util.SecurityUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -27,6 +28,7 @@ import java.util.List;
 public class InventoryController {
 
     private final InventoryService inventoryService;
+    private final SecurityUtils securityUtils;
 
     @GetMapping("/branch/{branchId}")
     @Operation(summary = "Get branch inventory", description = "Get all stock for a specific branch")
@@ -35,6 +37,7 @@ public class InventoryController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
+        securityUtils.validateBranchAccess(branchId);
         Pageable pageable = PageRequest.of(page, size);
         Page<BranchInventory> inventory = inventoryService.getBranchInventory(branchId, pageable);
         return ResponseEntity.ok(ApiResponse.success(inventory));
@@ -47,6 +50,7 @@ public class InventoryController {
             @RequestParam Long branchId,
             @Valid @RequestBody StockAdjustmentRequest request
     ) {
+        securityUtils.validateBranchAccess(branchId);
         BranchInventory inventory = inventoryService.adjustStock(
                 branchId,
                 request.getProductId(),
@@ -63,6 +67,7 @@ public class InventoryController {
     public ResponseEntity<ApiResponse<List<BranchInventory>>> getLowStockItems(
             @RequestParam Long branchId
     ) {
+        securityUtils.validateBranchAccess(branchId);
         List<BranchInventory> items = inventoryService.getLowStockItems(branchId);
         return ResponseEntity.ok(ApiResponse.success(items));
     }
@@ -74,6 +79,7 @@ public class InventoryController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
+        securityUtils.validateBranchAccess(branchId);
         Pageable pageable = PageRequest.of(page, size);
         Page<StockMovement> movements = inventoryService.getStockMovements(branchId, pageable);
         return ResponseEntity.ok(ApiResponse.success(movements));
@@ -87,6 +93,7 @@ public class InventoryController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
+        securityUtils.validateBranchAccess(branchId);
         Pageable pageable = PageRequest.of(page, size);
         Page<BranchInventory> results = inventoryService.searchInventory(branchId, query, pageable);
         return ResponseEntity.ok(ApiResponse.success(results));
@@ -100,6 +107,7 @@ public class InventoryController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
+        securityUtils.validateBranchAccess(branchId);
         Pageable pageable = PageRequest.of(page, size);
         Page<BranchInventory> inventory = inventoryService.getInventoryByCategory(branchId, categoryId, pageable);
         return ResponseEntity.ok(ApiResponse.success(inventory));
@@ -112,6 +120,7 @@ public class InventoryController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
+        securityUtils.validateBranchAccess(branchId);
         Pageable pageable = PageRequest.of(page, size);
         Page<BranchInventory> items = inventoryService.getInStockItems(branchId, pageable);
         return ResponseEntity.ok(ApiResponse.success(items));
@@ -124,6 +133,7 @@ public class InventoryController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
+        securityUtils.validateBranchAccess(branchId);
         Pageable pageable = PageRequest.of(page, size);
         Page<BranchInventory> items = inventoryService.getOutOfStockItems(branchId, pageable);
         return ResponseEntity.ok(ApiResponse.success(items));

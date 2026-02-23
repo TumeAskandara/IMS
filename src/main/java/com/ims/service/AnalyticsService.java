@@ -235,18 +235,28 @@ public class AnalyticsService {
     /**
      * Get top performing products (accounting for returns)
      */
-    public List<ProductPerformanceDTO> getTopProducts(LocalDateTime startDate, LocalDateTime endDate, int limit) {
-        log.info("Getting top {} products from {} to {}", limit, startDate, endDate);
+    public List<ProductPerformanceDTO> getTopProducts(LocalDateTime startDate, LocalDateTime endDate, int limit, Long branchId) {
+        log.info("Getting top {} products from {} to {} (branchId={})", limit, startDate, endDate, branchId);
 
-        List<Sale> sales = saleRepository.findAll().stream()
-                .filter(s -> !s.getSaleDate().isBefore(startDate) && !s.getSaleDate().isAfter(endDate))
-                .filter(s -> s.getStatus() == SaleStatus.COMPLETED)
-                .collect(Collectors.toList());
-
-        List<SaleReturn> returns = saleReturnRepository.findAll().stream()
-                .filter(r -> !r.getReturnDate().isBefore(startDate) && !r.getReturnDate().isAfter(endDate))
-                .filter(r -> r.getStatus() == ReturnStatus.COMPLETED)
-                .collect(Collectors.toList());
+        List<Sale> sales;
+        List<SaleReturn> returns;
+        if (branchId != null) {
+            sales = saleRepository.findByBranchIdAndSaleDateBetween(branchId, startDate, endDate).stream()
+                    .filter(s -> s.getStatus() == SaleStatus.COMPLETED)
+                    .collect(Collectors.toList());
+            returns = saleReturnRepository.findByBranchIdAndReturnDateBetween(branchId, startDate, endDate).stream()
+                    .filter(r -> r.getStatus() == ReturnStatus.COMPLETED)
+                    .collect(Collectors.toList());
+        } else {
+            sales = saleRepository.findAll().stream()
+                    .filter(s -> !s.getSaleDate().isBefore(startDate) && !s.getSaleDate().isAfter(endDate))
+                    .filter(s -> s.getStatus() == SaleStatus.COMPLETED)
+                    .collect(Collectors.toList());
+            returns = saleReturnRepository.findAll().stream()
+                    .filter(r -> !r.getReturnDate().isBefore(startDate) && !r.getReturnDate().isAfter(endDate))
+                    .filter(r -> r.getStatus() == ReturnStatus.COMPLETED)
+                    .collect(Collectors.toList());
+        }
 
         Map<Long, ProductPerformanceDTO> productStats = new HashMap<>();
 
@@ -319,24 +329,31 @@ public class AnalyticsService {
     /**
      * Get sales trends (daily breakdown accounting for returns AND expenses)
      */
-    public List<SalesTrendDTO> getSalesTrends(LocalDateTime startDate, LocalDateTime endDate) {
-        log.info("Getting sales trends from {} to {}", startDate, endDate);
+    public List<SalesTrendDTO> getSalesTrends(LocalDateTime startDate, LocalDateTime endDate, Long branchId) {
+        log.info("Getting sales trends from {} to {} (branchId={})", startDate, endDate, branchId);
 
-        List<Sale> sales = saleRepository.findAll().stream()
-                .filter(s -> !s.getSaleDate().isBefore(startDate) && !s.getSaleDate().isAfter(endDate))
-                .filter(s -> s.getStatus() == SaleStatus.COMPLETED)
-                .collect(Collectors.toList());
-
-        List<SaleReturn> returns = saleReturnRepository.findAll().stream()
-                .filter(r -> !r.getReturnDate().isBefore(startDate) && !r.getReturnDate().isAfter(endDate))
-                .filter(r -> r.getStatus() == ReturnStatus.COMPLETED)
-                .collect(Collectors.toList());
-
-        List<Expense> expenses = expenseRepository.findByBranchAndDateRange(
-                null,
-                startDate.toLocalDate(),
-                endDate.toLocalDate()
-        );
+        List<Sale> sales;
+        List<SaleReturn> returns;
+        List<Expense> expenses;
+        if (branchId != null) {
+            sales = saleRepository.findByBranchIdAndSaleDateBetween(branchId, startDate, endDate).stream()
+                    .filter(s -> s.getStatus() == SaleStatus.COMPLETED)
+                    .collect(Collectors.toList());
+            returns = saleReturnRepository.findByBranchIdAndReturnDateBetween(branchId, startDate, endDate).stream()
+                    .filter(r -> r.getStatus() == ReturnStatus.COMPLETED)
+                    .collect(Collectors.toList());
+            expenses = expenseRepository.findByBranchAndDateRange(branchId, startDate.toLocalDate(), endDate.toLocalDate());
+        } else {
+            sales = saleRepository.findAll().stream()
+                    .filter(s -> !s.getSaleDate().isBefore(startDate) && !s.getSaleDate().isAfter(endDate))
+                    .filter(s -> s.getStatus() == SaleStatus.COMPLETED)
+                    .collect(Collectors.toList());
+            returns = saleReturnRepository.findAll().stream()
+                    .filter(r -> !r.getReturnDate().isBefore(startDate) && !r.getReturnDate().isAfter(endDate))
+                    .filter(r -> r.getStatus() == ReturnStatus.COMPLETED)
+                    .collect(Collectors.toList());
+            expenses = Collections.emptyList();
+        }
 
         Map<LocalDate, List<Sale>> salesByDate = sales.stream()
                 .collect(Collectors.groupingBy(s -> s.getSaleDate().toLocalDate()));
@@ -561,7 +578,7 @@ public class AnalyticsService {
                 netProfit.divide(totalRevenue, 4, RoundingMode.HALF_UP)
                         .multiply(BigDecimal.valueOf(100)).doubleValue() : 0.0;
 
-        List<ProductPerformanceDTO> products = getTopProducts(startDate, endDate, 100);
+        List<ProductPerformanceDTO> products = getTopProducts(startDate, endDate, 100, null);
 
         String mostProfitableProduct = products.isEmpty() ? "N/A" : products.get(0).getProductName();
         BigDecimal mostProfitableProductProfit = products.isEmpty() ? BigDecimal.ZERO :
@@ -597,10 +614,14 @@ public class AnalyticsService {
     /**
      * Get customer insights
      */
-    public List<CustomerInsightDTO> getCustomerInsights(int limit) {
-        log.info("Getting customer insights");
+    public List<CustomerInsightDTO> getCustomerInsights(int limit, Long branchId) {
+        log.info("Getting customer insights (branchId={})", branchId);
 
-        return customerRepository.findAll().stream()
+        List<Customer> customers = branchId != null
+                ? customerRepository.findByBranchId(branchId, org.springframework.data.domain.Pageable.unpaged()).getContent()
+                : customerRepository.findAll();
+
+        return customers.stream()
                 .map(customer -> {
                     int daysSinceLastPurchase = customer.getLastPurchaseDate() != null ?
                             (int) ChronoUnit.DAYS.between(customer.getLastPurchaseDate(), LocalDateTime.now()) : 999;

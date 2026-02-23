@@ -5,6 +5,7 @@ import com.ims.dto.customer.CustomerRequest;
 import com.ims.dto.customer.PurchaseHistoryDTO;
 import com.ims.dto.response.ApiResponse;
 import com.ims.service.CustomerService;
+import com.ims.util.SecurityUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -27,11 +28,13 @@ import java.util.List;
 public class CustomerController {
 
     private final CustomerService customerService;
+    private final SecurityUtils securityUtils;
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     @Operation(summary = "Create new customer", description = "Create a new customer in the system")
     public ResponseEntity<ApiResponse<CustomerDTO>> createCustomer(@Valid @RequestBody CustomerRequest request) {
+        securityUtils.validateBranchAccess(request.getBranchId());
         CustomerDTO customer = customerService.createCustomer(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Customer created successfully", customer));
@@ -44,9 +47,15 @@ public class CustomerController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "name") String sortBy) {
-        
+
         Pageable pageable = PageRequest.of(page, size, Sort.by(sortBy));
-        Page<CustomerDTO> customers = customerService.getAllCustomers(pageable);
+        Long branchId = securityUtils.resolveBranchId(null);
+        Page<CustomerDTO> customers;
+        if (branchId != null) {
+            customers = customerService.getCustomersByBranch(branchId, pageable);
+        } else {
+            customers = customerService.getAllCustomers(pageable);
+        }
         return ResponseEntity.ok(ApiResponse.success(customers));
     }
 
@@ -55,6 +64,7 @@ public class CustomerController {
     @Operation(summary = "Get customer by ID", description = "Retrieve customer details by ID")
     public ResponseEntity<ApiResponse<CustomerDTO>> getCustomerById(@PathVariable Long id) {
         CustomerDTO customer = customerService.getCustomerById(id);
+        securityUtils.validateBranchAccess(customer.getBranchId());
         return ResponseEntity.ok(ApiResponse.success(customer));
     }
 
@@ -64,7 +74,10 @@ public class CustomerController {
     public ResponseEntity<ApiResponse<CustomerDTO>> updateCustomer(
             @PathVariable Long id,
             @Valid @RequestBody CustomerRequest request) {
-        
+
+        CustomerDTO existing = customerService.getCustomerById(id);
+        securityUtils.validateBranchAccess(existing.getBranchId());
+        securityUtils.validateBranchAccess(request.getBranchId());
         CustomerDTO customer = customerService.updateCustomer(id, request);
         return ResponseEntity.ok(ApiResponse.success("Customer updated successfully", customer));
     }
@@ -84,9 +97,15 @@ public class CustomerController {
             @RequestParam String query,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        
+
         Pageable pageable = PageRequest.of(page, size);
-        Page<CustomerDTO> customers = customerService.searchCustomers(query, pageable);
+        Long branchId = securityUtils.resolveBranchId(null);
+        Page<CustomerDTO> customers;
+        if (branchId != null) {
+            customers = customerService.searchCustomersByBranch(branchId, query, pageable);
+        } else {
+            customers = customerService.searchCustomers(query, pageable);
+        }
         return ResponseEntity.ok(ApiResponse.success(customers));
     }
 
@@ -94,6 +113,8 @@ public class CustomerController {
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'CASHIER')")
     @Operation(summary = "Get customer purchase history", description = "Retrieve all purchases made by a customer")
     public ResponseEntity<ApiResponse<List<PurchaseHistoryDTO>>> getCustomerHistory(@PathVariable Long id) {
+        CustomerDTO customer = customerService.getCustomerById(id);
+        securityUtils.validateBranchAccess(customer.getBranchId());
         List<PurchaseHistoryDTO> history = customerService.getCustomerPurchaseHistory(id);
         return ResponseEntity.ok(ApiResponse.success(history));
     }
@@ -103,8 +124,14 @@ public class CustomerController {
     @Operation(summary = "Get top customers", description = "Retrieve top customers by lifetime value")
     public ResponseEntity<ApiResponse<List<CustomerDTO>>> getTopCustomers(
             @RequestParam(defaultValue = "10") int limit) {
-        
-        List<CustomerDTO> topCustomers = customerService.getTopCustomers(limit);
+
+        Long branchId = securityUtils.resolveBranchId(null);
+        List<CustomerDTO> topCustomers;
+        if (branchId != null) {
+            topCustomers = customerService.getTopCustomersByBranch(branchId, limit);
+        } else {
+            topCustomers = customerService.getTopCustomers(limit);
+        }
         return ResponseEntity.ok(ApiResponse.success(topCustomers));
     }
 
@@ -114,9 +141,15 @@ public class CustomerController {
     public ResponseEntity<ApiResponse<Page<CustomerDTO>>> getCustomersWithDebt(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        
+
         Pageable pageable = PageRequest.of(page, size);
-        Page<CustomerDTO> customers = customerService.getCustomersWithDebt(pageable);
+        Long branchId = securityUtils.resolveBranchId(null);
+        Page<CustomerDTO> customers;
+        if (branchId != null) {
+            customers = customerService.getCustomersWithDebtByBranch(branchId, pageable);
+        } else {
+            customers = customerService.getCustomersWithDebt(pageable);
+        }
         return ResponseEntity.ok(ApiResponse.success(customers));
     }
 
@@ -127,7 +160,8 @@ public class CustomerController {
             @PathVariable Long branchId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        
+
+        securityUtils.validateBranchAccess(branchId);
         Pageable pageable = PageRequest.of(page, size);
         Page<CustomerDTO> customers = customerService.getCustomersByBranch(branchId, pageable);
         return ResponseEntity.ok(ApiResponse.success(customers));
@@ -137,6 +171,8 @@ public class CustomerController {
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     @Operation(summary = "Activate customer", description = "Activate a suspended or inactive customer")
     public ResponseEntity<ApiResponse<Void>> activateCustomer(@PathVariable Long id) {
+        CustomerDTO customer = customerService.getCustomerById(id);
+        securityUtils.validateBranchAccess(customer.getBranchId());
         customerService.activateCustomer(id);
         return ResponseEntity.ok(ApiResponse.success("Customer activated successfully", null));
     }
@@ -145,6 +181,8 @@ public class CustomerController {
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     @Operation(summary = "Suspend customer", description = "Suspend a customer temporarily")
     public ResponseEntity<ApiResponse<Void>> suspendCustomer(@PathVariable Long id) {
+        CustomerDTO customer = customerService.getCustomerById(id);
+        securityUtils.validateBranchAccess(customer.getBranchId());
         customerService.suspendCustomer(id);
         return ResponseEntity.ok(ApiResponse.success("Customer suspended successfully", null));
     }
@@ -154,6 +192,6 @@ public class CustomerController {
     @Operation(summary = "Blacklist customer", description = "Blacklist a customer (ban from purchases)")
     public ResponseEntity<ApiResponse<Void>> blacklistCustomer(@PathVariable Long id) {
         customerService.blacklistCustomer(id);
-        return ResponseEntity.ok(ApiResponse.success("Customer blacklisted successfully",null));
+        return ResponseEntity.ok(ApiResponse.success("Customer blacklisted successfully", null));
     }
 }

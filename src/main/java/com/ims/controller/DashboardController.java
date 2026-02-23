@@ -3,6 +3,7 @@ package com.ims.controller;
 import com.ims.dto.response.ApiResponse;
 import com.ims.dto.response.DashboardSummary;
 import com.ims.service.DashboardService;
+import com.ims.util.SecurityUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -20,13 +21,15 @@ import org.springframework.web.bind.annotation.*;
 public class DashboardController {
 
     private final DashboardService dashboardService;
+    private final SecurityUtils securityUtils;
 
     @GetMapping("/summary")
     @Operation(summary = "Get dashboard summary", description = "KPIs: revenue, sales, stock value, debts")
     public ResponseEntity<ApiResponse<DashboardSummary>> getDashboardSummary(
             @RequestParam(required = false) Long branchId
     ) {
-        DashboardSummary summary = dashboardService.getDashboardSummary(branchId);
+        Long effectiveBranchId = securityUtils.resolveBranchId(branchId);
+        DashboardSummary summary = dashboardService.getDashboardSummary(effectiveBranchId);
         return ResponseEntity.ok(ApiResponse.success(summary));
     }
 }
