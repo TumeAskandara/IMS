@@ -18,3 +18,12 @@ Thumbs.db
 # Maven
 .mvn/timing.properties
 .mvn/wrapper/maven-wrapper.jar
+
+# Environment (secrets)
+.env
+
+# SSL certificates
+certbot/
+*.pem
+*.key
+*.crt
