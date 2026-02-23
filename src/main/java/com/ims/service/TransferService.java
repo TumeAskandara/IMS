@@ -89,6 +89,150 @@ public class TransferService {
     }
 
     @Transactional
+    public StockTransferDTO directTransfer(TransferRequest request) {
+        Branch sourceBranch = branchRepository.findById(request.getSourceBranchId())
+                .orElseThrow(() -> new ResourceNotFoundException("Branch", "id", request.getSourceBranchId()));
+
+        Branch destinationBranch = branchRepository.findById(request.getDestinationBranchId())
+                .orElseThrow(() -> new ResourceNotFoundException("Branch", "id", request.getDestinationBranchId()));
+
+        if (sourceBranch.getId().equals(destinationBranch.getId())) {
+            throw new BadRequestException("Source and destination branches cannot be the same");
+        }
+
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        User requestedBy = userRepository.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "username", username));
+
+        // Phase 1: Validate all items have sufficient stock before making any changes
+        List<Product> products = new ArrayList<>();
+        List<BranchInventory> sourceInventories = new ArrayList<>();
+        for (TransferItemRequest itemReq : request.getItems()) {
+            Product product = productRepository.findById(itemReq.getProductId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Product", "id", itemReq.getProductId()));
+            products.add(product);
+
+            BranchInventory sourceInventory = branchInventoryRepository
+                    .findByBranchIdAndProductIdForUpdate(sourceBranch.getId(), product.getId())
+                    .orElseThrow(() -> new BadRequestException(
+                            "Product " + product.getName() + " not available in source branch"));
+
+            if (sourceInventory.getQuantityAvailable() < itemReq.getQuantityRequested()) {
+                throw new BadRequestException(
+                        "Insufficient stock for " + product.getName() +
+                                ". Available: " + sourceInventory.getQuantityAvailable());
+            }
+            sourceInventories.add(sourceInventory);
+        }
+
+        // Phase 2: Create and save the transfer record to get its ID
+        String transferNumber = generateTransferNumber(sourceBranch, destinationBranch);
+        LocalDateTime now = LocalDateTime.now();
+
+        StockTransfer transfer = StockTransfer.builder()
+                .transferNumber(transferNumber)
+                .sourceBranch(sourceBranch)
+                .destinationBranch(destinationBranch)
+                .requestedBy(requestedBy)
+                .approvedBy(requestedBy)
+                .requestDate(now)
+                .approvalDate(now)
+                .shipDate(now)
+                .receiveDate(now)
+                .status(TransferStatus.RECEIVED)
+                .notes(request.getNotes())
+                .build();
+
+        List<TransferItemRequest> itemReqs = request.getItems();
+        for (int i = 0; i < itemReqs.size(); i++) {
+            TransferItem item = TransferItem.builder()
+                    .product(products.get(i))
+                    .quantityRequested(itemReqs.get(i).getQuantityRequested())
+                    .quantityShipped(itemReqs.get(i).getQuantityRequested())
+                    .quantityReceived(itemReqs.get(i).getQuantityRequested())
+                    .quantityDamaged(0)
+                    .build();
+            transfer.addTransferItem(item);
+        }
+
+        StockTransfer saved = stockTransferRepository.save(transfer);
+
+        // Phase 3: Update inventory and create stock movements with correct referenceId
+        for (int i = 0; i < itemReqs.size(); i++) {
+            TransferItemRequest itemReq = itemReqs.get(i);
+            Product product = products.get(i);
+            BranchInventory sourceInventory = sourceInventories.get(i);
+
+            // Deduct from source
+            int oldSourceQty = sourceInventory.getQuantityOnHand();
+            int newSourceQty = oldSourceQty - itemReq.getQuantityRequested();
+            sourceInventory.setQuantityOnHand(newSourceQty);
+            sourceInventory.setQuantityAvailable(newSourceQty - sourceInventory.getQuantityReserved());
+            branchInventoryRepository.save(sourceInventory);
+
+            // Create TRANSFER_OUT movement
+            stockMovementRepository.save(StockMovement.builder()
+                    .product(product)
+                    .branch(sourceBranch)
+                    .movementType(StockMovementType.TRANSFER_OUT)
+                    .quantity(itemReq.getQuantityRequested())
+                    .quantityBefore(oldSourceQty)
+                    .quantityAfter(newSourceQty)
+                    .referenceType("TRANSFER")
+                    .referenceId(saved.getId())
+                    .notes("Direct transfer to " + destinationBranch.getName())
+                    .build());
+
+            // Add to destination (create inventory record if it doesn't exist)
+            BranchInventory destInventory = branchInventoryRepository
+                    .findByBranchIdAndProductIdForUpdate(destinationBranch.getId(), product.getId())
+                    .orElse(BranchInventory.builder()
+                            .branch(destinationBranch)
+                            .product(product)
+                            .quantityOnHand(0)
+                            .quantityReserved(0)
+                            .quantityAvailable(0)
+                            .build());
+
+            int oldDestQty = destInventory.getQuantityOnHand();
+            int newDestQty = oldDestQty + itemReq.getQuantityRequested();
+            destInventory.setQuantityOnHand(newDestQty);
+            destInventory.setQuantityAvailable(newDestQty - destInventory.getQuantityReserved());
+            branchInventoryRepository.save(destInventory);
+
+            // Create TRANSFER_IN movement
+            stockMovementRepository.save(StockMovement.builder()
+                    .product(product)
+                    .branch(destinationBranch)
+                    .movementType(StockMovementType.TRANSFER_IN)
+                    .quantity(itemReq.getQuantityRequested())
+                    .quantityBefore(oldDestQty)
+                    .quantityAfter(newDestQty)
+                    .referenceType("TRANSFER")
+                    .referenceId(saved.getId())
+                    .notes("Direct transfer from " + sourceBranch.getName())
+                    .build());
+        }
+
+        // Notify destination branch managers
+        List<User> destManagers = userRepository.findByBranchAndRole(
+                destinationBranch, Role.MANAGER);
+        for (User manager : destManagers) {
+            notificationService.createNotification(
+                    manager.getId(),
+                    NotificationType.TRANSFER_APPROVED,
+                    NotificationPriority.MEDIUM,
+                    "Direct Transfer Completed",
+                    String.format("Transfer #%s from %s has been completed",
+                            saved.getTransferNumber(),
+                            sourceBranch.getName())
+            );
+        }
+
+        return mapToDTO(saved);
+    }
+
+    @Transactional
     public StockTransferDTO approveTransfer(Long transferId) {
         StockTransfer transfer = getTransferEntityById(transferId);
 

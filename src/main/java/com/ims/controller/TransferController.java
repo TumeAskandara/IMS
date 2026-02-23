@@ -32,14 +32,24 @@ public class TransferController {
     private final SecurityUtils securityUtils;
 
     @PostMapping
-    @Operation(summary = "Create transfer", description = "Create new transfer request")
+    @Operation(summary = "Create transfer", description = "Create new transfer request. Set directTransfer=true to immediately update stock at both branches.")
     public ResponseEntity<ApiResponse<StockTransferDTO>> createTransfer(
             @Valid @RequestBody TransferRequest request
     ) {
         securityUtils.validateTransferAccess(request.getSourceBranchId(), request.getDestinationBranchId());
-        StockTransferDTO transfer = transferService.createTransfer(request);
+
+        StockTransferDTO transfer;
+        String message;
+        if (Boolean.TRUE.equals(request.getDirectTransfer())) {
+            transfer = transferService.directTransfer(request);
+            message = "Transfer completed successfully — stock updated";
+        } else {
+            transfer = transferService.createTransfer(request);
+            message = "Transfer created successfully";
+        }
+
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Transfer created successfully", transfer));
+                .body(ApiResponse.success(message, transfer));
     }
 
     @GetMapping

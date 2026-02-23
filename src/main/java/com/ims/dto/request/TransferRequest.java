@@ -22,4 +22,11 @@ public class TransferRequest {
     private List<TransferItemRequest> items;
     
     private String notes;
+
+    /**
+     * When true, the transfer is immediately completed in a single step:
+     * stock is deducted from source and added to destination without
+     * requiring separate approve/ship/receive steps.
+     */
+    private Boolean directTransfer = false;
 }
