@@ -24,9 +24,9 @@ public class TransferRequest {
     private String notes;
 
     /**
-     * When true, the transfer is immediately completed in a single step:
-     * stock is deducted from source and added to destination without
-     * requiring separate approve/ship/receive steps.
+     * When true (default), the transfer is immediately completed in a single step:
+     * stock is deducted from source and added to destination.
+     * Set to false to use the multi-step workflow (approve → ship → receive).
      */
-    private Boolean directTransfer = false;
+    private Boolean directTransfer = true;
 }
