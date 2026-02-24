@@ -96,6 +96,6 @@ jobs:
             docker compose up -d --remove-orphans
             echo "Waiting for health check..."
             sleep 15
-            curl -sf http://localhost:9443/actuator/health || exit 1
+            curl -sfk https://localhost/actuator/health || exit 1
             echo "Deploy successful!"
             docker image prune -f
