@@ -71,6 +71,36 @@ spring:
       allow-credentials: true
       max-age: 3600
 
+  # ==========================================
+  # MAIL CONFIGURATION
+  # ==========================================
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+# ==========================================
+# NOTIFICATION CONFIGURATION
+# ==========================================
+app:
+  notifications:
+    email:
+      enabled: ${EMAIL_NOTIFICATIONS_ENABLED:false}
+      from: ${MAIL_FROM:noreply@ims.com}
+    sms:
+      enabled: ${SMS_NOTIFICATIONS_ENABLED:false}
+      twilio:
+        account-sid: ${TWILIO_ACCOUNT_SID:}
+        auth-token: ${TWILIO_AUTH_TOKEN:}
+        from-number: ${TWILIO_FROM_NUMBER:}
+
 server:
   port: 8080
   error:

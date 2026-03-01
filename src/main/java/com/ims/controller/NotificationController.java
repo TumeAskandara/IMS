@@ -1,6 +1,8 @@
 package com.ims.controller;
 
 import com.ims.dto.notification.NotificationDTO;
+import com.ims.dto.notification.NotificationPreferenceDTO;
+import com.ims.dto.notification.NotificationPreferenceRequest;
 import com.ims.dto.response.ApiResponse;
 import com.ims.entity.User;
 import com.ims.enums.NotificationPriority;
@@ -10,6 +12,7 @@ import com.ims.service.NotificationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -28,8 +31,6 @@ public class NotificationController {
 
     private final NotificationService notificationService;
     private final UserRepository userRepository;
-
-
 
     @PostMapping("/test-create")
     @PreAuthorize("hasRole('ADMIN')")
@@ -115,14 +116,33 @@ public class NotificationController {
         return ResponseEntity.ok(ApiResponse.success("Notification deleted successfully", null));
     }
 
-    private Long getUserIdFromAuth(Authentication authentication) {
-        // Get username from Spring Security's UserDetails
-        String username = authentication.getName();
+    // ==========================================
+    // NOTIFICATION PREFERENCES
+    // ==========================================
 
-        // Fetch the actual User entity from database
+    @GetMapping("/preferences")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Get notification preferences", description = "Get email/SMS notification preferences")
+    public ResponseEntity<ApiResponse<NotificationPreferenceDTO>> getPreferences(Authentication authentication) {
+        Long userId = getUserIdFromAuth(authentication);
+        return ResponseEntity.ok(ApiResponse.success(notificationService.getPreferences(userId)));
+    }
+
+    @PutMapping("/preferences")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Update notification preferences", description = "Update email/SMS notification preferences")
+    public ResponseEntity<ApiResponse<NotificationPreferenceDTO>> updatePreferences(
+            Authentication authentication,
+            @Valid @RequestBody NotificationPreferenceRequest request) {
+        Long userId = getUserIdFromAuth(authentication);
+        return ResponseEntity.ok(ApiResponse.success("Preferences updated",
+                notificationService.updatePreferences(userId, request)));
+    }
+
+    private Long getUserIdFromAuth(Authentication authentication) {
+        String username = authentication.getName();
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found: " + username));
-
         return user.getId();
     }
 }

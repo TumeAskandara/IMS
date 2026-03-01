@@ -9,5 +9,9 @@ public enum NotificationType {
     TRANSFER_REJECTED,      // Stock transfer rejected
     SALE_COMPLETED,         // Large sale completed
     SYSTEM_ALERT,           // General system alert
-    USER_ACTION             // User-triggered notification
+    USER_ACTION,            // User-triggered notification
+    PURCHASE_ORDER_SUBMITTED,  // PO submitted for approval
+    PURCHASE_ORDER_APPROVED,   // PO approved
+    PURCHASE_ORDER_RECEIVED,   // Goods received against PO
+    PURCHASE_ORDER_CANCELLED   // PO cancelled
 }
