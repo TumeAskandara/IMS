@@ -84,7 +84,10 @@ management:
         include: health
   endpoint:
     health:
-      show-details: never
+      show-details: always
+  health:
+    mail:
+      enabled: false
 
 # ==========================================
 # SWAGGER — enabled in Docker/production
