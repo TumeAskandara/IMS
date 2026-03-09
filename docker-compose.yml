@@ -1,3 +1,113 @@
+#services:
+#  postgres:
+#    image: postgres:16-alpine
+#    container_name: ims-postgres
+#    command: -p 7432
+#    restart: unless-stopped
+#    environment:
+#      POSTGRES_DB: ${POSTGRES_DB}
+#      POSTGRES_USER: ${POSTGRES_USER}
+#      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+#      PGPORT: 7432
+#    volumes:
+#      - postgres_data:/var/lib/postgresql/data
+#    networks:
+#      - backend
+#    security_opt:
+#      - no-new-privileges:true
+#    healthcheck:
+#      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} -p 7432"]
+#      interval: 10s
+#      timeout: 5s
+#      retries: 5
+#      start_period: 30s
+#
+#  app:
+#    image: ghcr.io/tumeaskandara/ims:latest
+#    container_name: ims-app
+#    restart: unless-stopped
+#    environment:
+#      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+#      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:7432/${POSTGRES_DB}
+#      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+#      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+#      JWT_SECRET: ${JWT_SECRET}
+#      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://megatrucks.shop}
+#    depends_on:
+#      postgres:
+#        condition: service_healthy
+#    networks:
+#      - frontend
+#      - backend
+#    security_opt:
+#      - no-new-privileges:true
+#    healthcheck:
+#      test: ["CMD-SHELL", "curl -f http://localhost:9443/actuator/health || exit 1"]
+#      interval: 30s
+#      timeout: 10s
+#      retries: 3
+#      start_period: 60s
+#
+#  frontend:
+#    image: ghcr.io/tumeaskandara/ims-frontend:latest
+#    container_name: ims-frontend
+#    restart: unless-stopped
+#    environment:
+#      NEXT_PUBLIC_API_URL: https://megatrucks.shop/api/v1
+#    depends_on:
+#      app:
+#        condition: service_healthy
+#    networks:
+#      - frontend
+#    security_opt:
+#      - no-new-privileges:true
+##    healthcheck:
+##      test: ["CMD-SHELL", "curl -f http://localhost:3000 || exit 1"]
+##      interval: 30s
+##      timeout: 10s
+##      retries: 3
+##      start_period: 30s
+#
+#    healthcheck:
+#      test: [ "CMD-SHELL", "wget -qO- http://localhost:9443/actuator/health 2>&1 | grep -q '\"status\"' || exit 1" ]
+#      interval: 30s
+#      timeout: 15s
+#      retries: 5
+#      start_period: 120s
+#
+#  nginx:
+#    image: nginx:alpine
+#    container_name: ims-nginx
+#    restart: unless-stopped
+#    ports:
+#      - "80:80"
+#      - "443:443"
+#    volumes:
+#      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+#      - /etc/letsencrypt:/etc/letsencrypt:ro
+#      - certbot_webroot:/var/www/certbot:ro
+#    depends_on:
+#      app:
+#        condition: service_healthy
+#      frontend:
+#        condition: service_healthy
+#    networks:
+#      - frontend
+#    security_opt:
+#      - no-new-privileges:true
+#
+#networks:
+#  frontend:
+#    driver: bridge
+#  backend:
+#    driver: bridge
+#    internal: true
+#
+#volumes:
+#  postgres_data:
+#  certbot_webroot:
+
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -42,11 +152,11 @@ services:
     security_opt:
       - no-new-privileges:true
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9443/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9443/actuator/health 2>&1 | grep -q '\"status\"' || exit 1"]
       interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+      timeout: 15s
+      retries: 5
+      start_period: 120s
 
   frontend:
     image: ghcr.io/tumeaskandara/ims-frontend:latest
@@ -61,19 +171,12 @@ services:
       - frontend
     security_opt:
       - no-new-privileges:true
-#    healthcheck:
-#      test: ["CMD-SHELL", "curl -f http://localhost:3000 || exit 1"]
-#      interval: 30s
-#      timeout: 10s
-#      retries: 3
-#      start_period: 30s
-
     healthcheck:
-      test: [ "CMD-SHELL", "wget -qO- http://localhost:9443/actuator/health 2>&1 | grep -q '\"status\"' || exit 1" ]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000 2>&1 | grep -q html || exit 1"]
       interval: 30s
       timeout: 15s
       retries: 5
-      start_period: 120s
+      start_period: 60s
 
   nginx:
     image: nginx:alpine
