@@ -87,13 +87,13 @@ management:
       show-details: never
 
 # ==========================================
-# SWAGGER — disabled in Docker/production
+# SWAGGER — enabled in Docker/production
 # ==========================================
 springdoc:
   api-docs:
-    enabled: false
+    enabled: true
   swagger-ui:
-    enabled: false
+    enabled: true
 
 # ==========================================
 # LOGGING — production level, file output
