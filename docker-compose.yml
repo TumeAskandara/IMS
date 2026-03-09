@@ -13,19 +13,8 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - backend
-    read_only: true
-    tmpfs:
-      - /tmp
-      - /run/postgresql
     security_opt:
       - no-new-privileges:true
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: "1.0"
-        reservations:
-          memory: 256M
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} -p 7432"]
       interval: 10s
@@ -34,44 +23,26 @@ services:
       start_period: 30s
 
   app:
-    image: ghcr.io/${GITHUB_REPOSITORY:-local/ims}:${IMAGE_TAG:-latest}
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/tumeaskandara/ims:latest
     container_name: ims-app
     restart: unless-stopped
-    ports:
-      - "9443:9443"
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:7432/${POSTGRES_DB}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://localhost}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://megatrucks.shop}
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - frontend
       - backend
-    read_only: true
-    tmpfs:
-      - /tmp
-      - /app/logs
     security_opt:
       - no-new-privileges:true
-    cap_drop:
-      - ALL
-    deploy:
-      resources:
-        limits:
-          memory: 768M
-          cpus: "1.5"
-        reservations:
-          memory: 384M
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9443/actuator/health"]
+      test: ["CMD-SHELL", "curl -f http://localhost:9443/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -81,6 +52,8 @@ services:
     image: ghcr.io/tumeaskandara/ims-frontend:latest
     container_name: ims-frontend
     restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: https://megatrucks.shop/api/v1
     depends_on:
       app:
         condition: service_healthy
@@ -88,17 +61,12 @@ services:
       - frontend
     security_opt:
       - no-new-privileges:true
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: "0.5"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      test: ["CMD-SHELL", "curl -f http://localhost:3000 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 30s
 
   nginx:
     image: nginx:alpine
@@ -109,7 +77,7 @@ services:
       - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - certbot_certs:/etc/letsencrypt:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
       - certbot_webroot:/var/www/certbot:ro
     depends_on:
       app:
@@ -118,33 +86,8 @@ services:
         condition: service_healthy
     networks:
       - frontend
-    read_only: true
-    tmpfs:
-      - /tmp
-      - /var/cache/nginx
-      - /var/run
     security_opt:
       - no-new-privileges:true
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-          cpus: "0.5"
-
-  certbot:
-    image: certbot/certbot
-    container_name: ims-certbot
-    volumes:
-      - certbot_certs:/etc/letsencrypt
-      - certbot_webroot:/var/www/certbot
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done'"
-    depends_on:
-      - nginx
-    deploy:
-      resources:
-        limits:
-          memory: 64M
-          cpus: "0.25"
 
 networks:
   frontend:
@@ -155,5 +98,4 @@ networks:
 
 volumes:
   postgres_data:
-  certbot_certs:
   certbot_webroot:

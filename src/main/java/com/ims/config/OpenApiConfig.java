@@ -30,7 +30,7 @@ import io.swagger.v3.oas.annotations.servers.Server;
                 ),
                 @Server(
                         description = "Production Server",
-                        url = "https://api.ims.com"
+                        url = "https://megatrucks.shop"
                 )
         }
 )
