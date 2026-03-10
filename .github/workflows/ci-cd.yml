@@ -83,6 +83,20 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Copy docker-compose to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          source: "docker-compose.yml"
+          target: "/opt/ims"
+          overwrite: true
+
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1
         with:
@@ -90,12 +104,12 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
+          command_timeout: 5m
           script: |
             cd /opt/ims
             docker compose pull app
-            docker compose up -d --remove-orphans
+            docker compose up -d --force-recreate --remove-orphans
             echo "Waiting for health check..."
-            sleep 15
-            curl -sfk https://localhost/actuator/health || exit 1
-            echo "Deploy successful!"
+            sleep 150
+            docker compose ps | grep -q "healthy" && echo "Deploy successful!" || exit 1
             docker image prune -f
