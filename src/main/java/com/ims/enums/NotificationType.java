@@ -13,5 +13,9 @@ public enum NotificationType {
     PURCHASE_ORDER_SUBMITTED,  // PO submitted for approval
     PURCHASE_ORDER_APPROVED,   // PO approved
     PURCHASE_ORDER_RECEIVED,   // Goods received against PO
-    PURCHASE_ORDER_CANCELLED   // PO cancelled
+    PURCHASE_ORDER_CANCELLED,  // PO cancelled
+    EXPIRY_WARNING,            // Product approaching expiry
+    PROFIT_MARGIN_WARNING,     // Selling below cost or low margin
+    AUTO_REORDER,              // Auto-reorder PO created
+    STOCK_RECONCILIATION       // Stock reconciliation discrepancy
 }

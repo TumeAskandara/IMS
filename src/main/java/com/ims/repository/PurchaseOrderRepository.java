@@ -59,4 +59,9 @@ public interface PurchaseOrderRepository extends JpaRepository<PurchaseOrder, Lo
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end,
             Pageable pageable);
+
+    @Query("SELECT CASE WHEN COUNT(po) > 0 THEN true ELSE false END FROM PurchaseOrder po " +
+            "JOIN po.items i WHERE po.branch.id = :branchId AND i.product.id = :productId " +
+            "AND po.status IN ('DRAFT', 'SUBMITTED', 'APPROVED', 'SHIPPED')")
+    boolean existsPendingOrderForProduct(@Param("branchId") Long branchId, @Param("productId") Long productId);
 }

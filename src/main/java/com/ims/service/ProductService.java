@@ -7,6 +7,7 @@ import com.ims.exception.BadRequestException;
 import com.ims.exception.ResourceNotFoundException;
 import com.ims.repository.CategoryRepository;
 import com.ims.repository.ProductRepository;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -19,6 +20,7 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
+    private final AuditLogService auditLogService;
 
     @Transactional(readOnly = true)
     public Page<Product> getAllProducts(Pageable pageable) {
@@ -72,6 +74,7 @@ public class ProductService {
                 .minimumStock(request.getMinimumStock())
                 .notes(request.getNotes())
                 .imageUrl(request.getImageUrl())
+                .expiryDate(request.getExpiryDate())
                 .isActive(request.getIsActive())
                 .build();
 
@@ -81,12 +84,22 @@ public class ProductService {
             product.setCategory(category);
         }
 
-        return productRepository.save(product);
+        Product saved = productRepository.save(product);
+        auditLogService.logCreate("Product", saved.getId(),
+                Map.of("sku", saved.getSku(), "name", saved.getName(),
+                        "unitPrice", String.valueOf(saved.getUnitPrice())));
+        return saved;
     }
 
     @Transactional
     public Product updateProduct(Long id, ProductRequest request) {
         Product product = getProductById(id);
+        // Capture old values for audit
+        Map<String, Object> oldValues = Map.of(
+                "sku", product.getSku(), "name", product.getName(),
+                "unitPrice", String.valueOf(product.getUnitPrice()),
+                "costPrice", String.valueOf(product.getCostPrice()),
+                "isActive", String.valueOf(product.getIsActive()));
 
         if (!product.getSku().equals(request.getSku()) && productRepository.existsBySku(request.getSku())) {
             throw new BadRequestException("Product with SKU " + request.getSku() + " already exists");
@@ -110,6 +123,7 @@ public class ProductService {
         product.setMinimumStock(request.getMinimumStock());
         product.setNotes(request.getNotes());
         product.setImageUrl(request.getImageUrl());
+        product.setExpiryDate(request.getExpiryDate());
         product.setIsActive(request.getIsActive());
 
         if (request.getCategoryId() != null) {
@@ -118,7 +132,14 @@ public class ProductService {
             product.setCategory(category);
         }
 
-        return productRepository.save(product);
+        Product updated = productRepository.save(product);
+        Map<String, Object> newValues = Map.of(
+                "sku", updated.getSku(), "name", updated.getName(),
+                "unitPrice", String.valueOf(updated.getUnitPrice()),
+                "costPrice", String.valueOf(updated.getCostPrice()),
+                "isActive", String.valueOf(updated.getIsActive()));
+        auditLogService.logUpdate("Product", updated.getId(), oldValues, newValues);
+        return updated;
     }
 
     @Transactional
@@ -126,5 +147,7 @@ public class ProductService {
         Product product = getProductById(id);
         product.setIsDeleted(true);
         productRepository.save(product);
+        auditLogService.logDelete("Product", id,
+                Map.of("sku", product.getSku(), "name", product.getName()));
     }
 }

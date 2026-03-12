@@ -29,4 +29,10 @@ public interface SupplierRepository extends JpaRepository<Supplier, Long> {
     boolean existsByCode(String code);
 
     boolean existsByName(String name);
+
+    @Query("SELECT s FROM Supplier s WHERE s.isActive = true AND (" +
+            "LOWER(s.name) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+            "LOWER(s.code) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+            "LOWER(s.contactPerson) LIKE LOWER(CONCAT('%', :search, '%')))")
+    Page<Supplier> searchSuppliers(@Param("search") String search, Pageable pageable);
 }

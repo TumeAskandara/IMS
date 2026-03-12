@@ -36,6 +36,8 @@ public class SaleService {
     private final CreditAccountRepository creditAccountRepository;
     private final DebtRepository debtRepository;
     private final CustomerRepository customerRepository;
+    private final ProfitMarginService profitMarginService;
+    private final AuditLogService auditLogService;
 
     @Transactional
     public Sale createSale(SaleRequest request) {
@@ -189,9 +191,19 @@ public class SaleService {
 
         Sale savedSale = saleRepository.save(sale);
 
-        // Update inventory and create stock movements
+        // Audit log
+        auditLogService.logCreate("Sale", savedSale.getId(),
+                java.util.Map.of("invoiceNumber", savedSale.getInvoiceNumber(),
+                        "totalAmount", savedSale.getTotalAmount().toPlainString(),
+                        "paymentMethod", savedSale.getPaymentMethod().name(),
+                        "status", savedSale.getStatus().name(),
+                        "itemCount", String.valueOf(savedSale.getSaleItems().size())));
+
+        // Update inventory and create stock movements, check profit margins
         for (SaleItem item : savedSale.getSaleItems()) {
             updateInventoryForSale(branch, item.getProduct(), item.getQuantity(), savedSale.getId());
+            // Profit margin warning check
+            profitMarginService.checkMarginOnSale(item.getProduct().getId(), item.getUnitPrice());
         }
 
         // Handle credit sale

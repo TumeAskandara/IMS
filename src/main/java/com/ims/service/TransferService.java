@@ -36,6 +36,7 @@ public class TransferService {
     private final BranchInventoryRepository branchInventoryRepository;
     private final StockMovementRepository stockMovementRepository;
     private final NotificationService notificationService;
+    private final AuditLogService auditLogService;
 
     @Transactional
     public StockTransferDTO createTransfer(TransferRequest request) {
@@ -83,6 +84,12 @@ public class TransferService {
         }
 
         StockTransfer saved = stockTransferRepository.save(transfer);
+
+        auditLogService.logCreate("StockTransfer", saved.getId(),
+                java.util.Map.of("transferNumber", saved.getTransferNumber(),
+                        "sourceBranch", sourceBranch.getName(),
+                        "destinationBranch", destinationBranch.getName(),
+                        "itemCount", String.valueOf(saved.getTransferItems().size())));
 
         // Map to DTO while session is still open
         return mapToDTO(saved);
@@ -229,6 +236,11 @@ public class TransferService {
             );
         }
 
+        auditLogService.logAction("StockTransfer", saved.getId(), "DIRECT_TRANSFER",
+                String.format("Direct transfer %s: %s → %s, %d items",
+                        saved.getTransferNumber(), sourceBranch.getName(),
+                        destinationBranch.getName(), itemReqs.size()));
+
         return mapToDTO(saved);
     }
 
@@ -306,6 +318,10 @@ public class TransferService {
             );
         }
 
+        auditLogService.logAction("StockTransfer", saved.getId(), "APPROVED",
+                String.format("Transfer %s approved by %s",
+                        saved.getTransferNumber(), approvedBy.getFullName()));
+
         return mapToDTO(saved);
     }
 
@@ -352,6 +368,13 @@ public class TransferService {
         transfer.setShipDate(LocalDateTime.now());
 
         StockTransfer saved = stockTransferRepository.save(transfer);
+
+        auditLogService.logAction("StockTransfer", saved.getId(), "SHIPPED",
+                String.format("Transfer %s shipped from %s to %s",
+                        saved.getTransferNumber(),
+                        transfer.getSourceBranch().getName(),
+                        transfer.getDestinationBranch().getName()));
+
         return mapToDTO(saved);
     }
 
@@ -412,6 +435,12 @@ public class TransferService {
         transfer.setReceiveDate(LocalDateTime.now());
 
         StockTransfer saved = stockTransferRepository.save(transfer);
+
+        auditLogService.logAction("StockTransfer", saved.getId(), "RECEIVED",
+                String.format("Transfer %s received at %s",
+                        saved.getTransferNumber(),
+                        transfer.getDestinationBranch().getName()));
+
         return mapToDTO(saved);
     }
 
@@ -438,6 +467,10 @@ public class TransferService {
                         transfer.getTransferNumber(),
                         reason)
         );
+
+        auditLogService.logAction("StockTransfer", saved.getId(), "REJECTED",
+                String.format("Transfer %s rejected. Reason: %s",
+                        saved.getTransferNumber(), reason));
 
         return mapToDTO(saved);
     }

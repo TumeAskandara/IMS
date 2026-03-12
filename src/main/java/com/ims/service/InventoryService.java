@@ -33,6 +33,7 @@ public class InventoryService {
     private final StockMovementRepository stockMovementRepository;
     private final NotificationService notificationService;
     private final UserRepository userRepository;
+    private final AuditLogService auditLogService;
 
     @Transactional(readOnly = true)
     public Page<BranchInventory> getBranchInventory(Long branchId, Pageable pageable) {
@@ -79,6 +80,12 @@ public class InventoryService {
         inventory.setQuantityAvailable(newQuantity - inventory.getQuantityReserved());
 
         BranchInventory saved = branchInventoryRepository.save(inventory);
+
+        // Audit log for stock adjustment
+        auditLogService.logAction("Inventory", saved.getId(), "STOCK_ADJUSTMENT",
+                String.format("Product: %s, Branch: %s, Type: %s, Qty: %d, Before: %d, After: %d",
+                        product.getName(), branch.getName(), movementType.name(),
+                        quantity, oldQuantity, newQuantity));
 
         // Create stock movement record
         StockMovement movement = StockMovement.builder()

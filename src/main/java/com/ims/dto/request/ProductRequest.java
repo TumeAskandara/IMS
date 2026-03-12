@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 @Data
 @NoArgsConstructor
@@ -46,5 +47,7 @@ public class ProductRequest {
     
     private String imageUrl;
     
+    private LocalDate expiryDate;
+
     private Boolean isActive = true;
 }

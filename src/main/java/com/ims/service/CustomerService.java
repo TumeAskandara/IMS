@@ -41,6 +41,7 @@ public class CustomerService {
     private final MessageService messageService;
     private final NotificationService notificationService;
     private final UserRepository userRepository;
+    private final AuditLogService auditLogService;
 
     public CustomerDTO createCustomer(CustomerRequest request) {
         log.info("Creating new customer: {}", request.getName());
@@ -49,9 +50,16 @@ public class CustomerService {
         Branch branch = branchRepository.findById(request.getBranchId())
                 .orElseThrow(() -> new ResourceNotFoundException("Branch not found"));
 
-        // Validate unique email
-        if (request.getEmail() != null && customerRepository.existsByEmail(request.getEmail())) {
+        // Duplicate prevention: validate unique email
+        if (request.getEmail() != null && !request.getEmail().isBlank()
+                && customerRepository.existsByEmail(request.getEmail())) {
             throw new IllegalArgumentException(messageService.getMessage("user.emailexists"));
+        }
+
+        // Duplicate prevention: validate unique phone
+        if (request.getPhone() != null && !request.getPhone().isBlank()
+                && customerRepository.existsByPhone(request.getPhone())) {
+            throw new IllegalArgumentException("A customer with this phone number already exists");
         }
 
         // Generate customer ID
@@ -75,6 +83,11 @@ public class CustomerService {
 
         Customer saved = customerRepository.save(customer);
         log.info("Customer created successfully: {}", saved.getCustomerId());
+
+        auditLogService.logCreate("Customer", saved.getId(),
+                java.util.Map.of("customerId", saved.getCustomerId(),
+                        "name", saved.getName(),
+                        "customerType", saved.getCustomerType().name()));
 
         return mapToDTO(saved);
     }
@@ -169,6 +182,10 @@ public class CustomerService {
         Customer updated = customerRepository.save(customer);
         log.info("Customer updated successfully: {}", updated.getCustomerId());
 
+        auditLogService.logUpdate("Customer", updated.getId(),
+                java.util.Map.of("name", request.getName(), "phone", String.valueOf(request.getPhone())),
+                java.util.Map.of("name", updated.getName(), "phone", String.valueOf(updated.getPhone())));
+
         return mapToDTO(updated);
     }
 
@@ -180,6 +197,9 @@ public class CustomerService {
 
         customerRepository.delete(customer);
         log.info("Customer deleted successfully: {}", customer.getCustomerId());
+
+        auditLogService.logDelete("Customer", id,
+                java.util.Map.of("customerId", customer.getCustomerId(), "name", customer.getName()));
     }
 
     public void activateCustomer(Long id) {

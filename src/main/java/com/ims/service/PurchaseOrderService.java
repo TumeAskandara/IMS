@@ -33,6 +33,7 @@ public class PurchaseOrderService {
     private final StockMovementRepository stockMovementRepository;
     private final NotificationService notificationService;
     private final SecurityUtils securityUtils;
+    private final AuditLogService auditLogService;
 
     public PurchaseOrderDTO createPurchaseOrder(PurchaseOrderRequest request) {
         Supplier supplier = supplierRepository.findById(request.getSupplierId())
@@ -70,6 +71,14 @@ public class PurchaseOrderService {
         po.recalculateTotals();
         po = purchaseOrderRepository.save(po);
         log.info("Created purchase order: {}", po.getPoNumber());
+
+        auditLogService.logCreate("PurchaseOrder", po.getId(),
+                java.util.Map.of("poNumber", po.getPoNumber(),
+                        "supplier", supplier.getName(),
+                        "branch", branch.getName(),
+                        "totalAmount", po.getTotalAmount().toPlainString(),
+                        "itemCount", String.valueOf(po.getItems().size())));
+
         return mapToDTO(po);
     }
 
@@ -89,6 +98,11 @@ public class PurchaseOrderService {
         );
 
         log.info("Submitted PO: {}", po.getPoNumber());
+
+        auditLogService.logAction("PurchaseOrder", po.getId(), "SUBMITTED",
+                String.format("PO %s submitted for supplier %s, total: %s",
+                        po.getPoNumber(), po.getSupplier().getName(), po.getTotalAmount()));
+
         return mapToDTO(po);
     }
 
@@ -110,6 +124,10 @@ public class PurchaseOrderService {
         );
 
         log.info("Approved PO: {} by {}", po.getPoNumber(), approver.getFullName());
+
+        auditLogService.logAction("PurchaseOrder", po.getId(), "APPROVED",
+                String.format("PO %s approved by %s", po.getPoNumber(), approver.getFullName()));
+
         return mapToDTO(po);
     }
 
@@ -207,6 +225,10 @@ public class PurchaseOrderService {
         );
 
         log.info("Received goods for PO: {} — Status: {}", po.getPoNumber(), po.getStatus());
+
+        auditLogService.logAction("PurchaseOrder", po.getId(), "GOODS_RECEIVED",
+                String.format("Goods received for PO %s, status: %s", po.getPoNumber(), po.getStatus()));
+
         return mapToDTO(po);
     }
 
@@ -230,6 +252,10 @@ public class PurchaseOrderService {
         );
 
         log.info("Cancelled PO: {} — Reason: {}", po.getPoNumber(), reason);
+
+        auditLogService.logAction("PurchaseOrder", po.getId(), "CANCELLED",
+                String.format("PO %s cancelled. Reason: %s", po.getPoNumber(), reason));
+
         return mapToDTO(po);
     }
 

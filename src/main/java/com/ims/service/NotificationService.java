@@ -214,6 +214,7 @@ public class NotificationService {
             case TRANSFER_APPROVED, TRANSFER_REJECTED -> pref.getTransferEmail();
             case SALE_COMPLETED -> pref.getSaleEmail();
             case SYSTEM_ALERT, USER_ACTION -> true;
+            case EXPIRY_WARNING, PROFIT_MARGIN_WARNING, AUTO_REORDER, STOCK_RECONCILIATION -> pref.getLowStockEmail();
         };
     }
 
@@ -226,6 +227,7 @@ public class NotificationService {
             case TRANSFER_APPROVED, TRANSFER_REJECTED -> pref.getTransferSms();
             case SALE_COMPLETED -> pref.getSaleSms();
             case SYSTEM_ALERT, USER_ACTION -> true;
+            case EXPIRY_WARNING, PROFIT_MARGIN_WARNING, AUTO_REORDER, STOCK_RECONCILIATION -> pref.getLowStockSms();
         };
     }
 
